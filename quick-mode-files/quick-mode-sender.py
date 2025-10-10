@@ -63,8 +63,11 @@ if __name__ == "__main__":
                 nrf.wait_until_sent()
                 chunks_sent += 1
                 # Print the progress.
-                progress = (chunks_sent * chunk_size * 100) / file_size
-                print(f"Progress: {min(100, progress):.2f}%", end='\r')
+                progress = min(100, (chunks_sent * chunk_size * 100) / file_size)
+                bar_length = 50
+                filled_len = int(bar_length * progress // 100)
+                bar = '█' * filled_len + '-' * (bar_length - filled_len)
+                print(f'Progress: |{bar}| {progress:.1f}%', end='\r')
 
             except TimeoutError:
                 print(f"Error: Timeout on chunk {chunks_sent}. Retrying or aborting...")
