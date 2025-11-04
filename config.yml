@@ -7,17 +7,17 @@ wsl: True
 local_results_dir: "./results"
 
 raspberries:
-  - name: "RX"
-    host: "rpb01@192.168.137.57"
-    remote_dir: "/home/rpb01/mtp"
-    run_cmd: "python quick-mode-files/quick-mode-receiver.py"
-    results_dir: "results"
-    show_output: True
-
   - name: "TX"
     host: "rpb02@192.168.137.158"
     remote_dir: "/home/rpb02/mtp"
-    run_cmd: "python quick-mode-files/quick-mode-sender.py -f sample-files/test_latin1.txt"
+    run_cmd: "python src/berrybeam.py sender"
+    results_dir: "results"
+    show_output: True
+
+  - name: "RX"
+    host: "rpb01@192.168.137.57"
+    remote_dir: "/home/rpb01/mtp"
+    run_cmd: "python src/berrybeam.py receiver"
     results_dir: "results"
     show_output: True
 

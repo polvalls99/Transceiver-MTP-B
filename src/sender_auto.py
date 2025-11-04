@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Quick Mode Auto Sender (MD5 + size-based completion)
 - Waits for a USB drive containing a .txt file.
@@ -25,6 +24,8 @@ import traceback
 
 import pigpio
 from nrf24 import *
+
+import berrybeam_config as cfg
 
 HEADER_TERMINATOR = b'\n\n'
 CHUNK_SIZE = 32
@@ -68,7 +69,7 @@ def wait_for_usb_and_get_txt(poll_interval=POLL_INTERVAL):
     Espera fins que detecta un mount amb .txt. Retorna (filepath, mount_point).
     """
     print("Waiting for a USB drive containing a .txt file...")
-    while True:
+    while cfg.APP_MODE == cfg.MODE_SENDER:
         mounts = find_usb_mounts()
         if mounts:
             for m in mounts:
@@ -84,7 +85,7 @@ def wait_for_unplug(mount_point, poll_interval=POLL_INTERVAL):
     Espera fins que el punt de muntatge 'mount_point' desaparegui (USB retirat).
     """
     print(f"Waiting for {mount_point} to be removed to reset...")
-    while True:
+    while cfg.APP_MODE == cfg.MODE_SENDER:
         mounts = find_usb_mounts()
         if mount_point not in mounts:
             print(f"{mount_point} removed.")
@@ -158,15 +159,14 @@ def send_file(pi, nrf, filepath, address):
         sent_bytes += len(chunk)
         print(f"Progress: {sent_bytes}/{size} bytes ({100*sent_bytes/max(1,size):.1f}%)", end='\r')
         return sent_bytes >= size
-    
-    
+
 
     # Config inicial segura
     nrf.set_data_rate(RF24_DATA_RATE.RATE_2MBPS)
     nrf.flush_tx(); nrf.flush_rx()
 
-    
-    while True:
+
+    while cfg.APP_MODE == cfg.MODE_SENDER:
         try:
             done = send_next_chunk()
             if done:
@@ -199,12 +199,15 @@ def send_file(pi, nrf, filepath, address):
     print("\nTransfer complete.")
 
 
-def main():
-    parser = argparse.ArgumentParser(description="NRF24 Auto File Sender (MD5)")
-    parser.add_argument('-n', '--hostname', default='localhost', help="Hostname for pigpio daemon")
-    parser.add_argument('-p', '--port', type=int, default=8888, help="Port for pigpio daemon")
-    parser.add_argument('address', nargs='?', default='FILEX', help="5-char NRF24 address")
-    args = parser.parse_args()
+def run(hostname='localhost', port=8888, address='FILEX'):
+    """
+    NRF24 Auto File Sender (MD5)
+
+    Args:
+        address (str): The 5-character NRF24 radio address to transmit to (default: 'FILEX').
+        hostname (str): The hostname for the pigpio daemon connection (default: 'localhost').
+        port (int): The port number for the pigpio daemon connection (default: 8888).
+    """
 
     print(f"Connecting to pigpio daemon on {args.hostname}:{args.port} ...")
     pi = pigpio.pi(args.hostname, args.port)
@@ -221,7 +224,7 @@ def main():
 
     try:
         # Main loop: espera USB -> envia -> espera unplug -> repeteix
-        while True:
+        while cfg.APP_MODE == cfg.MODE_SENDER:
             try:
                 txt_path, mount_point = wait_for_usb_and_get_txt()
                 try:
@@ -239,6 +242,3 @@ def main():
         nrf.power_down()
         pi.stop()
 
-
-if __name__ == "__main__":
-    main()

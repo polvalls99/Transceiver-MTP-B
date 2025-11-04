@@ -32,6 +32,7 @@ def load_config(path):
         return yaml.safe_load(data)
     else:
         # fallback: basic JSON-compatible YAML
+        print(data)
         return json.loads(data)
 
 config = load_config(CONFIG_FILE)

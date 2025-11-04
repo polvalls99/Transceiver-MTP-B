@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Quick Mode Auto Receiver (MD5 + size-based completion)
 - Listens for NRF24 transmissions.
@@ -19,6 +18,8 @@ import shutil
 
 import pigpio
 from nrf24 import *
+
+import berrybeam_config as cfg
 
 HEADER_TERMINATOR = b'\n\n'
 CHUNK_SIZE = 32
@@ -57,33 +58,36 @@ def clear_directory(dir_path):
             # best-effort: ignore errors during cleanup
             pass
 
-def main():
-    parser = argparse.ArgumentParser(description="NRF24 Auto File Receiver (MD5)")
-    parser.add_argument('-n', '--hostname', default='localhost', help="Hostname for pigpio daemon")
-    parser.add_argument('-p', '--port', type=int, default=8888, help="Port for pigpio daemon")
-    parser.add_argument('address', nargs='?', default='FILEX', help="5-char NRF24 address")
-    parser.add_argument('output_dir', nargs='?', default='received_files', help="Directory to save received files")
-    args = parser.parse_args()
+def run(hostname='localhost', port=8888, address='FILEX', output_dir='received_files'):
+    """
+    Initializes and runs the NRF24 file receiving process.
+
+    Args:
+        output_dir (str): Directory where the received files will be saved (default: 'received_files').
+        address (str): The 5-character NRF24 radio address to listen on (default: 'FILEX').
+        hostname (str): The hostname for the pigpio daemon connection (default: 'localhost').
+        port (int): The port number for the pigpio daemon connection (default: 8888).
+    """
 
     # Ensure output_dir exists and is empty for this session
-    os.makedirs(args.output_dir, exist_ok=True)
-    clear_directory(args.output_dir)
-    print(f"Session storage ready: {args.output_dir} (cleared)")
+    os.makedirs(output_dir, exist_ok=True)
+    clear_directory(output_dir)
+    print(f"Session storage ready: {output_dir} (cleared)")
 
-    print(f"Connecting to pigpio daemon on {args.hostname}:{args.port} ...")
-    pi = pigpio.pi(args.hostname, args.port)
+    print(f"Connecting to pigpio daemon on {hostname}:{port} ...")
+    pi = pigpio.pi(hostname, port)
     if not pi.connected:
         print("Could not connect to pigpio daemon. Exiting.")
         sys.exit(1)
 
     nrf = NRF24(pi, ce=25, payload_size=CHUNK_SIZE, channel=100,
                 data_rate=RF24_DATA_RATE.RATE_2MBPS, pa_level=RF24_PA.MIN, spi_speed=10e6)
-    nrf.set_address_bytes(len(args.address))
-    nrf.open_reading_pipe(RF24_RX_ADDR.P1, args.address)
+    nrf.set_address_bytes(len(address))
+    nrf.open_reading_pipe(RF24_RX_ADDR.P1, address)
     nrf.show_registers()
 
     try:
-        print(f"Listening on address: {args.address}")
+        print(f"Listening on address: {address}")
         header_buf = bytearray()
         receiving = False
         expected_size = None
@@ -92,7 +96,8 @@ def main():
         file_bytes = bytearray()
         last_copy_check = 0
         a = 0
-        while True:
+
+        while cfg.APP_MODE == cfg.MODE_RECEIVER:
             if nrf.data_ready():
                 payload = nrf.get_payload()
 
@@ -148,8 +153,8 @@ def main():
                     else:
                         print(f"No MD5 in header. Computed: {md5_actual}")
 
-                    os.makedirs(args.output_dir, exist_ok=True)
-                    save_path = os.path.join(args.output_dir, filename)
+                    os.makedirs(output_dir, exist_ok=True)
+                    save_path = os.path.join(output_dir, filename)
                     with open(save_path, 'wb') as f:
                         f.write(file_bytes)
                     print(f"Saved file to {save_path}")
@@ -182,9 +187,9 @@ def main():
                 mounts = find_usb_mounts()
                 if mounts and a==1:
                     usb = mounts[0]
-                    if os.path.isdir(args.output_dir):
-                        for fname in os.listdir(args.output_dir):
-                            local_file = os.path.join(args.output_dir, fname)
+                    if os.path.isdir(output_dir):
+                        for fname in os.listdir(output_dir):
+                            local_file = os.path.join(output_dir, fname)
                             if os.path.isfile(local_file):
                                 dest_dir = os.path.join(usb, 'received_files')
                                 os.makedirs(dest_dir, exist_ok=True)
@@ -206,6 +211,3 @@ def main():
     finally:
         nrf.power_down()
         pi.stop()
-
-if __name__ == "__main__":
-    main()
