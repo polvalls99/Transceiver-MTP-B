@@ -6,6 +6,8 @@
 # ====================================================================
 # Description: This script remotes via SSH into both raspberries and
 #              launches the command defined in the config.yml file.
+#
+# Usage:      ./loader.py [run]
 # ====================================================================
 
 import os
@@ -59,9 +61,20 @@ def run_command(cmd, live_output=True, logfile=None):
 
 def sync_repo(pi):
     print(f"\n=== Syncing repo to {pi['name']} ({pi['host']}) ===")
+    # first clean the existing repo in the raspberry
+    ssh_cmd = "powershell.exe \"" if WSL else ""
+    ssh_cmd += f"ssh {pi['host']} 'cd {pi['remote_dir']} && rm -rf src && rm -rf sample-files'"
+    ssh_cmd = ssh_cmd + "\"" if WSL else ssh_cmd
+    print(ssh_cmd)
+    run_command(ssh_cmd)
+
     cmd = "powershell.exe \"" if WSL else ""
-    cmd += f"scp -r {REPO_LOCAL_DIR}/* {pi['host']}:{pi['remote_dir']}/"
-    cmd = cmd + "\"" if WSL else ssh_cmd
+    cmd += "cp -r sample-files mtp_transfer/sample-files; "
+    cmd += "cp -r src mtp_transfer/src; "
+    cmd += f"scp -r {REPO_LOCAL_DIR}/mtp_transfer/* {pi['host']}:{pi['remote_dir']}/; "
+    cmd += "rm -Force -Recurse mtp_transfer "
+    cmd = cmd + "\"" if WSL else cmd
+    print(cmd)
     return run_command(cmd)
 
 def run_remote(pi):
@@ -79,7 +92,7 @@ def copy_results(pi):
     os.makedirs(dest_dir, exist_ok=True)
     cmd = "powershell.exe \"" if WSL else ""
     cmd += f"scp -r {pi['host']}:{pi['remote_dir']}/{pi['results_dir']}/* {dest_dir}/"
-    cmd = cmd + "\"" if WSL else ssh_cmd
+    cmd = cmd + "\"" if WSL else cmd
     print(cmd)
     return run_command(cmd)
 
@@ -90,19 +103,20 @@ def main():
     for pi in RASPBERRIES:
         sync_repo(pi)
 
-    threads = []
-    for pi in RASPBERRIES:
-        t = threading.Thread(target=run_remote, args=(pi,), daemon=True)
-        t.start()
-        threads.append(t)
+    if len(sys.argv) > 1 and sys.argv[1] == 'run':
+        threads = []
+        for pi in RASPBERRIES:
+            t = threading.Thread(target=run_remote, args=(pi,), daemon=True)
+            t.start()
+            threads.append(t)
 
-    for t in threads:
-        t.join()
+        for t in threads:
+            t.join()
 
-    for pi in RASPBERRIES:
-        copy_results(pi)
+        for pi in RASPBERRIES:
+            copy_results(pi)
 
-    print("\n=== All done! Results collected in:", LOCAL_RESULTS_DIR, "===")
+        print("\n=== All done! Results collected in:", LOCAL_RESULTS_DIR, "===")
 
 if __name__ == "__main__":
     try:
