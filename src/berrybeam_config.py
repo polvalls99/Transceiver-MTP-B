@@ -1,9 +1,40 @@
 # Initialize the global mode variable. Default it to None or a sensible default.
+MODE_IDLE = 0
 MODE_RECEIVER = 1
 MODE_SENDER = 2
 MODE_NETWORK = 3
 
+# State to indicate to the 7 segment display cuz i'm too lazy to write an enum
+STATE_IDLE             = 0
+STATE_RECV_WAIT        = 1
+STATE_RECV_ACTIVE      = 2
+STATE_SEND_WAIT        = 3
+STATE_SEND_ACTIVE      = 4
+STATE_NETW_WAIT        = 5
+STATE_NETW_RECV_ACTIVE = 6
+STATE_NETW_SEND_ACTIVE = 7
+
+# GPIO pins
+IN_GPIO_SWITCH_NETW    = 0
+IN_GPIO_SWITCH_RECV    = 0
+IN_GPIO_SWITCH_SEND    = 0
+IN_GPIO_SWITCH_SP_0    = 0
+IN_GPIO_SWITCH_SP_1    = 0
+OUT_GPIO_LED_PWR_ON     = 0
+OUT_GPIO_LED_BOOT_UP    = 0
+OUT_GPIO_LED_TX_ONGOING = 0
+OUT_GPIO_LED_RX_ONGOING = 0
+OUT_GPIO_7SEG_0      = 0
+OUT_GPIO_7SEG_1      = 0
+OUT_GPIO_7SEG_2      = 0
+OUT_GPIO_7SEG_3      = 0
+
+# Global mode variable. DO NOT CHANGE MANUALLY, use always the hanlder function
 APP_MODE = 0
+
+# Global variable indicating if we are sending/receiving data
+RECV_ACTIVE = 0
+SEND_ACTIVE = 0
 
 def set_mode(mode):
     """

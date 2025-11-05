@@ -7,7 +7,6 @@ Quick Mode Auto Receiver (MD5 + size-based completion)
 - Saves locally, and copies automatically to USB when one is detected.
 """
 
-import argparse
 import sys
 import time
 import json

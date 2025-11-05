@@ -14,7 +14,6 @@ Behavior added:
 - This effectively "resets" on unplug.
 """
 
-import argparse
 import sys
 import time
 import json
@@ -209,17 +208,17 @@ def run(hostname='localhost', port=8888, address='FILEX'):
         port (int): The port number for the pigpio daemon connection (default: 8888).
     """
 
-    print(f"Connecting to pigpio daemon on {args.hostname}:{args.port} ...")
-    pi = pigpio.pi(args.hostname, args.port)
+    print(f"Connecting to pigpio daemon on {hostname}:{port} ...")
+    pi = pigpio.pi(hostname, port)
     if not pi.connected:
         print("Could not connect to pigpio daemon. Exiting.")
         sys.exit(1)
 
     nrf = NRF24(pi, ce=25, payload_size=CHUNK_SIZE, channel=100,
                 data_rate=RF24_DATA_RATE.RATE_2MBPS, pa_level=RF24_PA.MIN, spi_speed=10e6)
-    nrf.set_address_bytes(len(args.address))
+    nrf.set_address_bytes(len(address))
     nrf.set_retransmission(15, 15)
-    nrf.open_writing_pipe(args.address)
+    nrf.open_writing_pipe(address)
     nrf.show_registers()
 
     try:
@@ -228,7 +227,7 @@ def run(hostname='localhost', port=8888, address='FILEX'):
             try:
                 txt_path, mount_point = wait_for_usb_and_get_txt()
                 try:
-                    send_file(pi, nrf, txt_path, args.address)
+                    send_file(pi, nrf, txt_path, address)
                 except Exception:
                     traceback.print_exc()
                     print("Error during transmission. Will wait for next removal/insert.")

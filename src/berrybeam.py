@@ -23,6 +23,7 @@ def run_sender(args):
     # Example specific argument for sender
     cfg.set_mode(cfg.MODE_SENDER)
     sender_auto.run(hostname=args.hostname, port=args.port, address=args.address)
+    print(f"Listening on port: {args.port}")
 
 
 def run_receiver(args):
@@ -140,8 +141,8 @@ def main():
             args.func(args)
         except KeyboardInterrupt:
             print("\n🛑 Interrupted by user.")
-        except Exception as e:
-            print(f"❌ Error while running: {e}")
+       # except Exception as e:
+       #     print(f"❌ Error while running: {e}")
 
     else:
         # This block is theoretically unreachable because of required=True, 
