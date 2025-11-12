@@ -12,6 +12,24 @@ import sender_auto
 import berrybeam_config as cfg
 import pigpio
 
+def set_7seg_state(pi, state):
+    """
+    Sets 7 segment code according to its symbol
+    """
+    segments = [1, 1, 1, 1, 1, 1, 1] # all off by default
+
+    if   state == STATE_IDLE:             segments = [1, 1, 1, 1, 1, 1, 1] # 0
+    elif state == STATE_RECV_WAIT:        segments = [1, 1, 1, 1, 1, 1, 1] # 1
+    elif state == STATE_RECV_ACTIVE:      segments = [1, 1, 1, 1, 1, 1, 1] # 1
+    elif state == STATE_SEND_ACTIVE:      segments = [1, 1, 1, 1, 1, 1, 1] # 2
+    elif state == STATE_SEND_WAIT:        segments = [1, 1, 1, 1, 1, 1, 1] # 3
+    elif state == STATE_NETW_WAIT:        segments = [1, 1, 1, 1, 1, 1, 1] # 4
+    elif state == STATE_NETW_RECV_ACTIVE: segments = [1, 1, 1, 1, 1, 1, 1] # 5
+    elif state == STATE_NETW_SEND_ACTIVE: segments = [1, 1, 1, 1, 1, 1, 1] # 6
+
+    for i in range(6):
+        pi.write(OUT_GPIO_7SEG[i], segments[i])
+
 
 def run(hostname='localhost', port=8888):
     """
@@ -31,19 +49,18 @@ def run(hostname='localhost', port=8888):
         sys.exit(1)
 
     # pin initialization
-    pi.set_mode(IN_GPIO_SWITCH_NETW   , pigpio.INPUT)
-    pi.set_mode(IN_GPIO_SWITCH_RECV   , pigpio.INPUT)
-    pi.set_mode(IN_GPIO_SWITCH_SEND   , pigpio.INPUT)
-    pi.set_mode(IN_GPIO_SWITCH_SP_0   , pigpio.INPUT)
-    pi.set_mode(IN_GPIO_SWITCH_SP_1   , pigpio.INPUT)
+    pi.set_mode(IN_GPIO_SWITCH_NETW    , pigpio.INPUT)
+    pi.set_mode(IN_GPIO_SWITCH_RECV    , pigpio.INPUT)
+    pi.set_mode(IN_GPIO_SWITCH_SEND    , pigpio.INPUT)
+    pi.set_mode(IN_GPIO_SWITCH_SP_0    , pigpio.INPUT)
+    pi.set_mode(IN_GPIO_SWITCH_SP_1    , pigpio.INPUT)
     pi.set_mode(OUT_GPIO_LED_PWR_ON    , pigpio.OUTPUT)
     pi.set_mode(OUT_GPIO_LED_BOOT_UP   , pigpio.OUTPUT)
     pi.set_mode(OUT_GPIO_LED_TX_ONGOING, pigpio.OUTPUT)
     pi.set_mode(OUT_GPIO_LED_RX_ONGOING, pigpio.OUTPUT)
-    pi.set_mode(OUT_GPIO_7SEG_0        , pigpio.OUTPUT)
-    pi.set_mode(OUT_GPIO_7SEG_1        , pigpio.OUTPUT)
-    pi.set_mode(OUT_GPIO_7SEG_2        , pigpio.OUTPUT)
-    pi.set_mode(OUT_GPIO_7SEG_3        , pigpio.OUTPUT)
+
+    for i in range(6):
+        pi.set_mode(OUT_GPIO_7SEG[i], pigpio.OUTPUT)
 
     # declare child process
     t = threading.Thread(target=sender_auto.run())
@@ -52,6 +69,9 @@ def run(hostname='localhost', port=8888):
     sw_netw = 0
     sw_send = 0
     sw_recv = 0
+
+    # indicate that we are booted up
+    pi.write(OUT_GPIO_LED_BOOT_UP, 1)
 
     while True:
         sw_netw = pi.read(IN_GPIO_SWITCH_NETW)
@@ -98,9 +118,6 @@ def run(hostname='localhost', port=8888):
             t.start()
 
         # Handle indicator output
-
-
-
-
+        set_7seg_state(pi, cfg.STATE)
 
 

@@ -24,13 +24,13 @@ OUT_GPIO_LED_PWR_ON     = 0
 OUT_GPIO_LED_BOOT_UP    = 0
 OUT_GPIO_LED_TX_ONGOING = 0
 OUT_GPIO_LED_RX_ONGOING = 0
-OUT_GPIO_7SEG_0      = 0
-OUT_GPIO_7SEG_1      = 0
-OUT_GPIO_7SEG_2      = 0
-OUT_GPIO_7SEG_3      = 0
+OUT_GPIO_7SEG = [1, 1, 1, 1, 1, 1, 1] # index 0 is seg a, index 6 is segment g
 
 # Global mode variable. DO NOT CHANGE MANUALLY, use always the hanlder function
 APP_MODE = 0
+
+# Global mode variable. DO NOT CHANGE MANUALLY, use always the hanlder function
+STATE = 0
 
 # Global variable indicating if we are sending/receiving data
 RECV_ACTIVE = 0
@@ -49,3 +49,10 @@ def set_mode(mode):
 
     APP_MODE = mode
     print(f"Configuration mode set to: {APP_MODE}")
+
+def set_state(state):
+    """
+    Sets the application's global state.
+    The state is then read by the top level to set the 7 segment accordingly
+    """
+    STATE = state
