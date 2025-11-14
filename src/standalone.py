@@ -74,16 +74,23 @@ def run(hostname='localhost', port=8888):
     pi.set_mode(OUT_GPIO_LED_TX_ONGOING, pigpio.OUTPUT)
     pi.set_mode(OUT_GPIO_LED_RX_ONGOING, pigpio.OUTPUT)
 
-    for i in range(6):
+    # Set pull up resistor
+    pi.set_pull_up_down(IN_GPIO_SWITCH_NETW , pigpio.PUD_UP)
+    pi.set_pull_up_down(IN_GPIO_SWITCH_RECV , pigpio.PUD_UP)
+    pi.set_pull_up_down(IN_GPIO_SWITCH_SEND , pigpio.PUD_UP)
+    pi.set_pull_up_down(IN_GPIO_SWITCH_SP_0 , pigpio.PUD_UP)
+
+    # set 7 segments to outputs
+    for i in range(4):
         pi.set_mode(OUT_GPIO_7SEG[i], pigpio.OUTPUT)
 
     # declare child process
     t = threading.Thread(target=sender_auto.run())
 
     # initialize switch read value
-    sw_netw = 0
-    sw_send = 0
-    sw_recv = 0
+    sw_netw = 1
+    sw_send = 1
+    sw_recv = 1
 
     # indicate that we are booted up
     pi.write(OUT_GPIO_LED_PWR_ON , 1)
@@ -94,7 +101,8 @@ def run(hostname='localhost', port=8888):
         sw_send = pi.read(IN_GPIO_SWITCH_SEND)
         sw_recv = pi.read(IN_GPIO_SWITCH_RECV)
 
-        if not sw_netw and not sw_recv and not sw_send:
+        # Remeber that the buttons are in pull up, so read values are inverted
+        if sw_netw and sw_recv and sw_send:
             cfg.set_mode(cfg.MODE_IDLE)
 
             if t.is_alive():
@@ -102,7 +110,7 @@ def run(hostname='localhost', port=8888):
 
             # turn off LEDs
 
-        elif and cfg.APP_MODE != cfg.MODE_NETWORK:
+        elif not sw_netw and cfg.APP_MODE != cfg.MODE_NETWORK:
             cfg.set_mode(cfg.MODE_NETWORK)
 
             # spawn network mode thread
@@ -113,7 +121,7 @@ def run(hostname='localhost', port=8888):
             #t = threading.Thread(target=network.run())
             #t.start()
 
-        elif pi.read(IN_GPIO_SWITCH_SEND) and cfg.APP_MODE != cfg.MODE_SENDER:
+        elif not sw_send and cfg.APP_MODE != cfg.MODE_SENDER:
             cfg.set_mode(cfg.MODE_SEND)
 
             # spawn recv mode thread
@@ -123,7 +131,7 @@ def run(hostname='localhost', port=8888):
             t = threading.Thread(target=sender_auto.run())
             t.start()
 
-        elif pi.read(IN_GPIO_SWITCH_RECV) and cfg.APP_MODE != cfg.MODE_RECEIVER:
+        elif not sw_recv and cfg.APP_MODE != cfg.MODE_RECEIVER:
             cfg.set_mode(cfg.MODE_RECV)
 
             # spawn network mode thread
