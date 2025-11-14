@@ -15,16 +15,15 @@ STATE_NETW_RECV_ACTIVE = 6
 STATE_NETW_SEND_ACTIVE = 7
 
 # GPIO pins
-IN_GPIO_SWITCH_NETW    = 0
-IN_GPIO_SWITCH_RECV    = 0
-IN_GPIO_SWITCH_SEND    = 0
-IN_GPIO_SWITCH_SP_0    = 0
-IN_GPIO_SWITCH_SP_1    = 0
-OUT_GPIO_LED_PWR_ON     = 0
-OUT_GPIO_LED_BOOT_UP    = 0
-OUT_GPIO_LED_TX_ONGOING = 0
-OUT_GPIO_LED_RX_ONGOING = 0
-OUT_GPIO_7SEG = [1, 1, 1, 1, 1, 1, 1] # index 0 is seg a, index 6 is segment g
+IN_GPIO_SWITCH_NETW    = 29
+IN_GPIO_SWITCH_RECV    = 31
+IN_GPIO_SWITCH_SEND    = 32
+IN_GPIO_SWITCH_SP_0    = 33
+OUT_GPIO_LED_PWR_ON     = 12 # red
+OUT_GPIO_LED_BOOT_UP    = 38 # yellow
+OUT_GPIO_LED_TX_ONGOING = 35 # white
+OUT_GPIO_LED_RX_ONGOING = 18 # green
+OUT_GPIO_7SEG = [11, 13, 15, 16] # index 0 is seg a, index 6 is segment g
 
 # Global mode variable. DO NOT CHANGE MANUALLY, use always the hanlder function
 APP_MODE = 0
