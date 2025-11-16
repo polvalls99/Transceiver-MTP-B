@@ -10,14 +10,14 @@ raspberries:
   - name: "RX"
     host: "rpb01@192.168.137.57"
     remote_dir: "/home/rpb01/mtp"
-    run_cmd: "python quick-mode-files/quick-mode-receiver.py"
+    run_cmd: "python src/quick-mode-test.py receiver"
     results_dir: "results"
     show_output: True
 
   - name: "TX"
     host: "rpb02@192.168.137.158"
     remote_dir: "/home/rpb02/mtp"
-    run_cmd: "python quick-mode-files/quick-mode-sender.py -f sample-files/test_latin1.txt"
+    run_cmd: "python src/quick-mode-test.py sender"
     results_dir: "results"
     show_output: True
 
