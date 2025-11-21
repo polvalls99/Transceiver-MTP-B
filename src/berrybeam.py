@@ -11,6 +11,7 @@ import argparse
 import sys
 import receiver_auto
 import sender_auto
+import standalone
 import berrybeam_config as cfg
 
 # --- 1. Define the Mode Functions ---
@@ -23,7 +24,6 @@ def run_sender(args):
     # Example specific argument for sender
     cfg.set_mode(cfg.MODE_SENDER)
     sender_auto.run(hostname=args.hostname, port=args.port, address=args.address)
-    print(f"Listening on port: {args.port}")
 
 
 def run_receiver(args):
@@ -34,7 +34,6 @@ def run_receiver(args):
     # Example specific argument for receiver
     cfg.set_mode(cfg.MODE_RECEIVER)
     receiver_auto.run(hostname=args.hostname, port=args.port, address=args.address, output_dir=args.output_dir)
-    print(f"Listening on port: {args.port}")
 
 
 def run_network(args):
@@ -43,8 +42,7 @@ def run_network(args):
     print(f"Args received: {args}")
 
     # Example specific argument for network
-    cfg.set_mode(cfg.NETWORK)
-    print(f"Configuring interface: {args.interface}")
+    cfg.set_mode(cfg.MODE_NETWORK)
 
 
 def run_standalone(args):
@@ -52,9 +50,8 @@ def run_standalone(args):
     print("--- ⚙️ STANDALONE MODE INITIATED ---")
     print(f"Args received: {args}")
 
-    cfg.set_mode(cfg.RECEIVER)
-    # Example specific argument for standalone
-    print(f"Processing data locally: {args.data_path}")
+    cfg.set_mode(cfg.MODE_IDLE)
+    standalone.run()
 
 # --- 2. Main Parser Setup ---
 
@@ -123,10 +120,7 @@ def main():
         help='Run the program in auto mode, letting the IO buttons in the raspberry to handle operation'
     )
     # Add a specific argument for the standalone mode
-    parser_standalone.add_argument(
-        'dummy', 
-        help='Currently unused, but we might want to pass some args to standalone in the future'
-    )
+
     # Set the function to be executed for this mode
     parser_standalone.set_defaults(func=run_standalone)
 

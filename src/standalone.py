@@ -7,10 +7,12 @@
 #              launches the command defined in the config.yml file.
 # ====================================================================
 
+import threading
 import receiver_auto
 import sender_auto
 import berrybeam_config as cfg
 import pigpio
+import time
 
 def set_7seg_state(pi, state):
     """
@@ -18,20 +20,22 @@ def set_7seg_state(pi, state):
     """
 
     STATE_TO_CODE = {
-        STATE_IDLE:             (0, 0, 0, 0),
-        STATE_RECV_WAIT:        (0, 0, 0, 1),
-        STATE_RECV_ACTIVE:      (0, 0, 1, 0),
-        STATE_SEND_ACTIVE:      (0, 0, 1, 1),
-        STATE_SEND_WAIT:        (0, 1, 0, 0),
-        STATE_NETW_WAIT:        (0, 1, 0, 1),
-        STATE_NETW_RECV_ACTIVE: (0, 1, 1, 0),
-        STATE_NETW_SEND_ACTIVE: (0, 1, 1, 1),
+        cfg.STATE_IDLE:             (0, 0, 0, 0),
+        cfg.STATE_RECV_WAIT:        (0, 0, 0, 1),
+        cfg.STATE_RECV_ACTIVE:      (0, 0, 1, 0),
+        cfg.STATE_SEND_ACTIVE:      (0, 0, 1, 1),
+        cfg.STATE_SEND_WAIT:        (0, 1, 0, 0),
+        cfg.STATE_NETW_WAIT:        (0, 1, 0, 1),
+        cfg.STATE_NETW_RECV_ACTIVE: (0, 1, 1, 0),
+        cfg.STATE_NETW_SEND_ACTIVE: (0, 1, 1, 1),
     }
 
     code = STATE_TO_CODE.get(state, [0, 0, 0, 0])  # F by default just in case
 
+    print(code)
+
     for i in range(4):
-        pi.write(OUT_GPIO_7SEG[i], code[i])
+        pi.write(cfg.OUT_GPIO_7SEG[i], code[i])
 
 
 def set_leds(pi, state):
@@ -40,11 +44,11 @@ def set_leds(pi, state):
     """
     rx_led = 0
     tx_led = 0
-    if   state == STATE_NETW_RECV_ACTIVE or state == STATE_RECV_ACTIVE: rx_led = 1
-    elif state == STATE_NETW_SEND_ACTIVE or state == STATE_SEND_ACTIVE: tx_led = 1
+    if   state == cfg.STATE_NETW_RECV_ACTIVE or state == cfg.STATE_RECV_ACTIVE: rx_led = 1
+    elif state == cfg.STATE_NETW_SEND_ACTIVE or state == cfg.STATE_SEND_ACTIVE: tx_led = 1
 
-    pi.write(OUT_GPIO_LED_TX_ONGOING, tx_led)
-    pi.write(OUT_GPIO_LED_RX_ONGOING, rx_led)
+    pi.write(cfg.OUT_GPIO_LED_TX_ONGOING, tx_led)
+    pi.write(cfg.OUT_GPIO_LED_RX_ONGOING, rx_led)
 
 
 def run(hostname='localhost', port=8888):
@@ -65,84 +69,114 @@ def run(hostname='localhost', port=8888):
         sys.exit(1)
 
     # pin initialization
-    pi.set_mode(IN_GPIO_SWITCH_NETW    , pigpio.INPUT)
-    pi.set_mode(IN_GPIO_SWITCH_RECV    , pigpio.INPUT)
-    pi.set_mode(IN_GPIO_SWITCH_SEND    , pigpio.INPUT)
-    pi.set_mode(IN_GPIO_SWITCH_SP_0    , pigpio.INPUT)
-    pi.set_mode(OUT_GPIO_LED_PWR_ON    , pigpio.OUTPUT)
-    pi.set_mode(OUT_GPIO_LED_BOOT_UP   , pigpio.OUTPUT)
-    pi.set_mode(OUT_GPIO_LED_TX_ONGOING, pigpio.OUTPUT)
-    pi.set_mode(OUT_GPIO_LED_RX_ONGOING, pigpio.OUTPUT)
+    pi.set_mode(cfg.IN_GPIO_SWITCH_NETW    , pigpio.INPUT)
+    pi.set_mode(cfg.IN_GPIO_SWITCH_RECV    , pigpio.INPUT)
+    pi.set_mode(cfg.IN_GPIO_SWITCH_SEND    , pigpio.INPUT)
+    pi.set_mode(cfg.IN_GPIO_SWITCH_SP_0    , pigpio.INPUT)
+    pi.set_mode(cfg.OUT_GPIO_LED_PWR_ON    , pigpio.OUTPUT)
+    pi.set_mode(cfg.OUT_GPIO_LED_BOOT_UP   , pigpio.OUTPUT)
+    pi.set_mode(cfg.OUT_GPIO_LED_TX_ONGOING, pigpio.OUTPUT)
+    pi.set_mode(cfg.OUT_GPIO_LED_RX_ONGOING, pigpio.OUTPUT)
 
     # Set pull up resistor
-    pi.set_pull_up_down(IN_GPIO_SWITCH_NETW , pigpio.PUD_UP)
-    pi.set_pull_up_down(IN_GPIO_SWITCH_RECV , pigpio.PUD_UP)
-    pi.set_pull_up_down(IN_GPIO_SWITCH_SEND , pigpio.PUD_UP)
-    pi.set_pull_up_down(IN_GPIO_SWITCH_SP_0 , pigpio.PUD_UP)
+    pi.set_pull_up_down(cfg.IN_GPIO_SWITCH_SP_0 , pigpio.PUD_UP)
+    pi.set_pull_up_down(cfg.IN_GPIO_SWITCH_RECV , pigpio.PUD_UP)
+    pi.set_pull_up_down(cfg.IN_GPIO_SWITCH_SEND , pigpio.PUD_UP)
+    pi.set_pull_up_down(cfg.IN_GPIO_SWITCH_NETW , pigpio.PUD_UP)
 
     # set 7 segments to outputs
     for i in range(4):
-        pi.set_mode(OUT_GPIO_7SEG[i], pigpio.OUTPUT)
+        pi.set_mode(cfg.OUT_GPIO_7SEG[i], pigpio.OUTPUT)
 
     # declare child process
-    t = threading.Thread(target=sender_auto.run())
+    t = threading.Thread(target=sender_auto.run)
 
     # initialize switch read value
     sw_netw = 1
     sw_send = 1
     sw_recv = 1
+    sw_idle = 1
 
     # indicate that we are booted up
-    pi.write(OUT_GPIO_LED_PWR_ON , 1)
-    pi.write(OUT_GPIO_LED_BOOT_UP, 1)
+    pi.write(cfg.OUT_GPIO_LED_PWR_ON , 1)
+    pi.write(cfg.OUT_GPIO_LED_BOOT_UP, 1)
 
-    while True:
-        sw_netw = pi.read(IN_GPIO_SWITCH_NETW)
-        sw_send = pi.read(IN_GPIO_SWITCH_SEND)
-        sw_recv = pi.read(IN_GPIO_SWITCH_RECV)
+    # wait 1 second to give time for restistors to be set up
+    time.sleep(1)
 
-        # Remeber that the buttons are in pull up, so read values are inverted
-        if sw_netw and sw_recv and sw_send:
-            cfg.set_mode(cfg.MODE_IDLE)
+    try:
+        while True:
+            time.sleep(0.1)
 
-            if t.is_alive():
-                t.join()
+            #FIXME: This GPIO seems to have something wrong in RP1
+            #sw_netw = pi.read(cfg.IN_GPIO_SWITCH_NETW)
+            sw_send = pi.read(cfg.IN_GPIO_SWITCH_SEND)
+            sw_recv = pi.read(cfg.IN_GPIO_SWITCH_RECV)
+            sw_idle = pi.read(cfg.IN_GPIO_SWITCH_SP_0)
 
-            # turn off LEDs
+            #print(f"sw_idle = {sw_idle}, sw_send = {sw_send}, sw_recv = {sw_recv}, sw_netw = {sw_netw}")
 
-        elif not sw_netw and cfg.APP_MODE != cfg.MODE_NETWORK:
-            cfg.set_mode(cfg.MODE_NETWORK)
+            # Remeber that the buttons are in pull up, so read values are inverted
+            if not sw_idle and cfg.APP_MODE != cfg.STATE_IDLE:
+                cfg.set_mode(cfg.MODE_IDLE)
+                cfg.set_state(cfg.STATE_IDLE)
 
-            # spawn network mode thread
-            if t.is_alive():
-                t.join()
+                if t.is_alive():
+                    t.join()
 
-            # FIXME: commenting network mode as it is not implemented yet
-            #t = threading.Thread(target=network.run())
-            #t.start()
+                # turn off LEDs
 
-        elif not sw_send and cfg.APP_MODE != cfg.MODE_SENDER:
-            cfg.set_mode(cfg.MODE_SEND)
+            elif not sw_netw and cfg.APP_MODE != cfg.MODE_NETWORK:
+                cfg.set_mode(cfg.MODE_NETWORK)
 
-            # spawn recv mode thread
-            if t.is_alive():
-                t.join()
+                # spawn network mode thread
+                if t.is_alive():
+                    t.join()
 
-            t = threading.Thread(target=sender_auto.run())
-            t.start()
+                # FIXME: commenting network mode as it is not implemented yet
+                #t = threading.Thread(target=network.run())
+                #t.start()
 
-        elif not sw_recv and cfg.APP_MODE != cfg.MODE_RECEIVER:
-            cfg.set_mode(cfg.MODE_RECV)
+            elif not sw_send and cfg.APP_MODE != cfg.MODE_SENDER:
+                cfg.set_mode(cfg.MODE_SENDER)
+                cfg.set_state(cfg.STATE_SEND_WAIT)
 
-            # spawn network mode thread
-            if t.is_alive():
-                t.join()
+                # spawn recv mode thread
+                if t.is_alive():
+                    t.join()
 
-            t = threading.Thread(target=receiver_auto.run())
-            t.start()
+                t = threading.Thread(target=sender_auto.run)
+                t.start()
 
-        # Handle indicator output
-        set_7seg_state(pi, cfg.STATE)
-        set_leds(pi, cfg.STATE)
 
+            elif not sw_recv and cfg.APP_MODE != cfg.MODE_RECEIVER:
+                cfg.set_mode(cfg.MODE_RECEIVER)
+                cfg.set_state(cfg.STATE_RECV_WAIT)
+
+                # spawn network mode thread
+                if t.is_alive():
+                    t.join()
+
+                t = threading.Thread(target=receiver_auto.run)
+                t.start()
+
+
+            # Handle indicator output
+            set_7seg_state(pi, cfg.STATE)
+            set_leds(pi, cfg.STATE)
+
+    except KeyboardInterrupt:
+        print("\nUser interrupted.")
+    except Exception:
+        traceback.print_exc()
+    finally:
+        pi.write(cfg.OUT_GPIO_LED_PWR_ON    , 0)
+        pi.write(cfg.OUT_GPIO_LED_BOOT_UP   , 0)
+        pi.write(cfg.OUT_GPIO_LED_TX_ONGOING, 0)
+        pi.write(cfg.OUT_GPIO_LED_RX_ONGOING, 0)
+
+        for i in range(4):
+            pi.write(cfg.OUT_GPIO_7SEG[i], 0)
+
+        pi.stop()
 
