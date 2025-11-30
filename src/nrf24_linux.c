@@ -59,12 +59,11 @@
 #define NRF24_PRIM_RX     (1 << 0)
 
 /* RF_SETUP bits */
-#define NRF24_CONT_WAVE   (1 << 7)
-#define NRF24_RF_DR_LOW   (1 << 5)
+//#define NRF24_RF_DR_LOW   (1 << 5)
 #define NRF24_PLL_LOCK    (1 << 4)
-#define NRF24_RF_DR_HIGH  (1 << 3)
-#define NRF24_RF_PWR_LOW  (1 << 1)
+#define NRF24_RF_DR       (1 << 3)
 #define NRF24_RF_PWR_HIGH (1 << 2)
+#define NRF24_RF_PWR_LOW  (1 << 1)
 
 /* STATUS bits */
 #define NRF24_RX_DR       (1 << 6)
@@ -344,6 +343,7 @@ int nrf24_init(nrf24_t *dev,
     dev->padding       = pad;
     dev->power_tx      = 0;
 
+    // Initialize SPI device
     if (nrf24_spi_init(dev, spi_device, spi_speed) < 0) {
         return -5;
     }
@@ -424,16 +424,10 @@ int nrf24_set_data_rate(nrf24_t *dev, rf24_data_rate_t rate)
     uint8_t rf_setup;
     nrf24_read_reg(dev, NRF24_RF_SETUP, &rf_setup, 1);
 
-    /* Clear DR bits */
-    rf_setup &= ~(NRF24_RF_DR_LOW | NRF24_RF_DR_HIGH);
+    /* Clear DR bit */
+    rf_setup &= ~NRF24_RF_DR;
 
-    if (rate == RF24_DR_250KBPS) {
-        rf_setup |= NRF24_RF_DR_LOW;
-    } else if (rate == RF24_DR_2MBPS) {
-        rf_setup |= NRF24_RF_DR_HIGH;
-    } else {
-        /* 1 Mbps (both bits cleared) */
-    }
+    rf_setup = rate ? rf_setup | RF24_DR_2MBPS : rf_setup | RF24_DR_2MBPS;
 
     nrf24_unset_ce(dev);
     nrf24_write_reg(dev, NRF24_RF_SETUP, &rf_setup, 1);

@@ -15,8 +15,7 @@ typedef enum {
 /* Data rate selection */
 typedef enum {
     RF24_DR_1MBPS   = 0,
-    RF24_DR_2MBPS   = 1,
-    RF24_DR_250KBPS = 2
+    RF24_DR_2MBPS   = 1
 } rf24_data_rate_t;
 
 /* CRC configuration */

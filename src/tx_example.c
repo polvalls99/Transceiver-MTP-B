@@ -74,14 +74,18 @@ int main(int argc, char *argv[])
 
     double t_start = now_seconds();
 
-    printf("AAAAAAAAAA\n");
-
     while ((n = fread(buf, 1, PAYLOAD_SIZE, f)) > 0) {
         total_bytes += n;
 
-        printf("BBBBBBBBBBBB\n");
         rc = nrf24_send(&dev, buf, n);
-        printf("sending bytes: %d", buf);
+
+        // printf("sending bytes: ");
+        // for (int i = 0; i < PAYLOAD_SIZE; i++) {
+        //     printf("%c", buf[i]);
+        // }
+        // 
+        // printf("\n");
+
         if (rc < 0) {
             fprintf(stderr, "send error %d\n", rc);
             break;

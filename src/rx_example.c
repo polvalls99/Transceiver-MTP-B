@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <time.h>
 #include <unistd.h>      /* usleep */
 #include "nrf24.h"
 
@@ -10,6 +11,13 @@
 #define SPI_SPEED     8000000
 #define RF_CHANNEL    76
 #define PAYLOAD_SIZE  32
+
+static double now_seconds(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
+}
 
 int main(int argc, char *argv[])
 {
@@ -67,10 +75,9 @@ int main(int argc, char *argv[])
 
     printf("Waiting for data...\n");
 
-    while (total_bytes < 1000000) {
+    while (1) {
         if (nrf24_data_ready(&dev)) {
             int got = nrf24_get_payload(&dev, buf, sizeof(buf));
-            printf("Got %d bytes (total = %zu): %d\n", got, total_bytes, buf);
             fflush(stdout);
             if (got > 0) {
                 fwrite(buf, 1, (size_t)got, f);
@@ -78,7 +85,7 @@ int main(int argc, char *argv[])
             }
         } else {
             /* Small sleep to avoid busy-waiting */
-            usleep(1000); /* 1 ms */
+            //usleep(1000); /* 1 ms */
         }
 
         /* TODO: add a stopping condition (e.g. known file size or special frame) */
