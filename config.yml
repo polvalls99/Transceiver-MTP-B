@@ -10,14 +10,16 @@ raspberries:
   - name: "TX"
     host: "rpb02@192.168.137.158"
     remote_dir: "/home/rpb02/mtp"
-    run_cmd: "python src/berrybeam.py sender"
+    #run_cmd: "python src/berrybeam.py sender"
+    run_cmd: "gcc src/nrf24_linux.c src/tx_example.c -o tx_example"
     results_dir: "results"
     show_output: True
 
   - name: "RX"
-    host: "rpb01@192.168.137.57"
+    host: "rpb01@192.168.137.93"
     remote_dir: "/home/rpb01/mtp"
-    run_cmd: "python src/berrybeam.py receiver"
+    #run_cmd: "python src/berrybeam.py receiver"
+    run_cmd: "gcc src/nrf24_linux.c src/rx_example.c -o rx_example"
     results_dir: "results"
     show_output: True
 
