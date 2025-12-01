@@ -8,7 +8,7 @@
 
 #define CE_PIN        25
 #define SPI_DEVICE    "/dev/spidev0.0"
-#define SPI_SPEED     8000000
+#define SPI_SPEED     10000000
 #define RF_CHANNEL    76
 #define PAYLOAD_SIZE  32
 
@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
             }
         } else {
             /* Small sleep to avoid busy-waiting */
-            //usleep(1000); /* 1 ms */
+            usleep(1000); /* 1 ms */
         }
 
         /* TODO: add a stopping condition (e.g. known file size or special frame) */

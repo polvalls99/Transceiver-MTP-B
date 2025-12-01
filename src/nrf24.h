@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include "regmap.h"
 
 /* Power Amplifier levels */
 typedef enum {
@@ -56,6 +57,10 @@ int nrf24_init(nrf24_t *dev,
                rf24_crc_t crc_bytes,
                uint8_t pad,
                rf24_pa_t pa_level);
+
+int nrf24_command(nrf24_t *dev, uint8_t *buf, unsigned len);
+int nrf24_read_reg(nrf24_t *dev, uint8_t reg, uint8_t *dst, unsigned len);
+void nrf24_set_ce(nrf24_t *dev, int level);
 
 /* Close SPI handle. Does NOT touch GPIO sysfs. */
 void nrf24_close(nrf24_t *dev);

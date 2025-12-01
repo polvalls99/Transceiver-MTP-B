@@ -1,13 +1,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <unistd.h>
 #include <string.h>
 #include <time.h>
 #include "nrf24.h"
+#include "regmap.h"
 
 #define CE_PIN        25          /* Adjust to your CE GPIO pin */
 #define SPI_DEVICE    "/dev/spidev0.0"
-#define SPI_SPEED     8000000     /* 8 MHz */
+#define SPI_SPEED     10000000     /* 8 MHz */
 #define RF_CHANNEL    76
 #define PAYLOAD_SIZE  32
 
@@ -61,23 +63,56 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    /* TX node uses this address as writing pipe */
+    nrf24_open_writing_pipe(&dev, addr, 5);
+    nrf24_power_up_tx(&dev);
 
     /* Debug: print configuration once */
     nrf24_debug_dump(&dev);
 
-    /* TX node uses this address as writing pipe */
-    nrf24_open_writing_pipe(&dev, addr, 5);
-
-    uint8_t buf[PAYLOAD_SIZE];
+    uint8_t buf[PAYLOAD_SIZE + 1];
+    uint8_t fifo_cnt = 0; // How many payloads are in the TX FIFO
     size_t total_bytes = 0;
     size_t n;
+    uint8_t fifo_status;
+    uint8_t status;
+    uint8_t config;
 
     double t_start = now_seconds();
 
-    while ((n = fread(buf, 1, PAYLOAD_SIZE, f)) > 0) {
+    //buf[0] = NRF24_W_TX_PAYLOAD; // Byte 0 is hardcoded to the command
+
+    // Put the CE down, only set back to 1 once we have finished
+    //nrf24_set_ce(&dev, 1);
+
+    // We store the read starting in the second index because the first byte
+    // will hold the command we are sending to the nrf24.
+    while ((n = fread(buf + 1, 1, PAYLOAD_SIZE, f)) > 0) {
         total_bytes += n;
 
-        rc = nrf24_send(&dev, buf, n);
+        buf[0] = NRF24_W_TX_PAYLOAD; // Byte 0 is hardcoded to the command
+        // The FIFO holds 3 full payloads, so we queue 3 at a time
+        // and then wait for it to be empty.
+        nrf24_read_reg(&dev, NRF24_FIFO_STATUS, &fifo_status, 1);
+        nrf24_read_reg(&dev, NRF24_CONFIG, &config, 1);
+        status = nrf24_get_status(&dev);
+
+        // printf("config = %0X \n", config);
+        // printf("status = %0X \n", status);
+        // printf("buf[0] = %0X , buf[1] = %0X, n = %d\n", buf[0], buf[1], n);
+        // printf("fifo_status = %0X \n", fifo_status);
+
+        if (!(fifo_status & NRF24_FTX_FULL)) {
+            nrf24_command(&dev, buf, 1 + dev.payload_size);
+            //usleep(2000); /* 2 ms */
+        } else {
+            //printf("FIFO IS FULL, WE ARE WAITIIIIING\n");
+            while ((fifo_status & NRF24_FTX_FULL)) {
+                nrf24_read_reg(&dev, NRF24_FIFO_STATUS, &fifo_status, 1);
+            }
+        }
+
+        /*rc = nrf24_send(&dev, buf, n);
 
         // printf("sending bytes: ");
         // for (int i = 0; i < PAYLOAD_SIZE; i++) {
@@ -91,19 +126,23 @@ int main(int argc, char *argv[])
             break;
         }
 
-        /* Wait for this payload to be transmitted */
-        nrf24_wait_until_sent(&dev);
+        // Wait for this payload to be transmitted 
+        nrf24_wait_until_sent(&dev);*/
     }
 
     double t_end = now_seconds();
     double elapsed = t_end - t_start;
     if (elapsed <= 0.0) elapsed = 1e-9;
 
+    // Put the CE back up
+    nrf24_set_ce(&dev, 0);
+
     double user_thr_mbps = (total_bytes * 8.0) / (elapsed * 1e6);
 
     printf("Sent %zu bytes in %.3f s => user throughput: %.3f Mbit/s\n",
            total_bytes, elapsed, user_thr_mbps);
 
+    sleep(2);
     nrf24_close(&dev);
     fclose(f);
     return 0;
