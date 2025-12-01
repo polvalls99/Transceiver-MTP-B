@@ -8,7 +8,7 @@
 
 #define CE_PIN        25
 #define SPI_DEVICE    "/dev/spidev0.0"
-#define SPI_SPEED     10000000
+#define SPI_SPEED     8000000
 #define RF_CHANNEL    76
 #define PAYLOAD_SIZE  32
 
@@ -98,6 +98,9 @@ int main(int argc, char *argv[])
     uint8_t buf[PAYLOAD_SIZE + 1];
     size_t total_bytes = 0;
     uint8_t fifo_status;
+    uint8_t status;
+
+    // Used for profiling
 
     printf("Waiting for data...\n");
 
@@ -111,23 +114,25 @@ int main(int argc, char *argv[])
         nrf24_read_reg(&dev, NRF24_FIFO_STATUS, &fifo_status, 1);
     }
 
-    while (total_bytes < 28000) {
+    nrf24_set_ce(&dev, 1);
 
-        //nrf24_read_reg(&dev, NRF24_FIFO_STATUS, &fifo_status, 1);
+    while (!eof) {
 
-        if (!(fifo_status & NRF24_FRX_EMPTY)) {
-            buf[0] = NRF24_R_RX_PAYLOAD;
-            //nrf24_command(&dev, buf, 1 + dev.payload_size);
-            nrf24_command(&dev, buf, 1 + dev.payload_size);
-            memcpy(mega_buff + total_bytes, buf + 1, PAYLOAD_SIZE);
-            //nrf24_get_payload(&dev, buf, PAYLOAD_SIZE);
-            total_bytes += PAYLOAD_SIZE;
+        nrf24_read_reg(&dev, NRF24_FIFO_STATUS, &fifo_status, 1);
+        status = nrf24_get_status(&dev);
+
+        if (fifo_status & NRF24_FRX_FULL) {
+        //if ((status & 0x0E) != 0x0E) {
+            nrf24_set_ce(&dev, 0);
+            for (int i = 0; i < 3; i++) {
+                buf[0] = NRF24_R_RX_PAYLOAD;
+                nrf24_command(&dev, buf, 1 + dev.payload_size);
+                fwrite(buf + 1, 1, PAYLOAD_SIZE, f);
+            }
+            total_bytes += 3 * PAYLOAD_SIZE;
+            nrf24_set_ce(&dev, 1);
         } else {
-            //printf("FIFO is empty, we are waitiiing\n");
-           // while (fifo_status & NRF24_FRX_EMPTY) {
-           //     nrf24_read_reg(&dev, NRF24_FIFO_STATUS, &fifo_status, 1);
-           // }
-            //printf("FIFO is not empty anymore\n");
+          
         }
       // if (nrf24_data_ready(&dev)) {
       //     int got = nrf24_get_payload(&dev, buf, sizeof(buf));
@@ -143,10 +148,10 @@ int main(int argc, char *argv[])
       // 
       //  /* TODO: add a stopping condition (e.g. known file size or special frame) */
       // 
-      //eof = is_all_ff(buf, PAYLOAD_SIZE);
+     // eof = is_all_ff(buf, PAYLOAD_SIZE);
     }
 
-    fwrite(mega_buff, 1, (total_bytes * PAYLOAD_SIZE), f);
+    //fwrite(mega_buff, 1, (total_bytes * PAYLOAD_SIZE), f);
 
     nrf24_set_ce(&dev, 0);
 
