@@ -9,7 +9,7 @@
 
 #define CE_PIN        25          /* Adjust to your CE GPIO pin */
 #define SPI_DEVICE    "/dev/spidev0.0"
-#define SPI_SPEED     8000000     /* 8 MHz */
+#define SPI_SPEED     12000000     /* 8 MHz */
 #define RF_CHANNEL    76
 #define PAYLOAD_SIZE  32
 
@@ -80,51 +80,29 @@ int main(int argc, char *argv[])
 
     double t_start = now_seconds();
 
-    //buf[0] = NRF24_W_TX_PAYLOAD; // Byte 0 is hardcoded to the command
-
-    // Put the CE down, only set back to 1 once we have finished
-    //nrf24_set_ce(&dev, 1);
-
-    // We store the read starting in the second index because the first byte
-    // will hold the command we are sending to the nrf24.
-    // while ((n = fread(buf + 1, 1, PAYLOAD_SIZE, f)) > 0) {
-    //     total_bytes += n;
-    // 
-    //     buf[0] = NRF24_W_TX_PAYLOAD; // Byte 0 is hardcoded to the command
-    // 
-    //     // The FIFO holds 3 full payloads, so we queue 3 at a time
-    //     // and then wait for it to be empty.
-    //     nrf24_read_reg(&dev, NRF24_FIFO_STATUS, &fifo_status, 1);
-    // 
-    //     if (!(fifo_status & NRF24_FTX_FULL)) {
-    //         nrf24_command(&dev, buf, 1 + dev.payload_size);
-    //     } else {
-    //         // Fifo is full, we are waiting
-    //         while ((fifo_status & NRF24_FTX_FULL)) {
-    //             nrf24_read_reg(&dev, NRF24_FIFO_STATUS, &fifo_status, 1);
-    //         }
-    //         usleep(20000);
-    //     }
-    // }
+    // We wait for the FIFO to be empty and then we queue 3 full payloads.
     while (n > 0) {
         nrf24_read_reg(&dev, NRF24_FIFO_STATUS, &fifo_status, 1);
-        //printf("%x ", fifo_status);
 
         // Wait for the FIFO to be empty
         while (!(fifo_status & NRF24_FTX_EMPTY)) nrf24_read_reg(&dev, NRF24_FIFO_STATUS, &fifo_status, 1);
 
-        // Send 3 payloads
         for (int i = 0; i < 3; i++) {
+            // We store the read starting in the second index because the first byte
+            // will hold the command we are sending to the nrf24.
             buf[0] = NRF24_W_TX_PAYLOAD; // Byte 0 is hardcoded to the command
-            if ((n = fread(buf + 1, 1, PAYLOAD_SIZE, f)) <= 0) break;
+            n = fread(buf + 1, 1, PAYLOAD_SIZE, f);
+
+            if (n <= 0) break;
             total_bytes += n;
+
             nrf24_command(&dev, buf, 1 + dev.payload_size);
         }
     }
 
     // Send a payload of 32 1s to stop the transmission
     nrf24_read_reg(&dev, NRF24_FIFO_STATUS, &fifo_status, 1);
-    while ((fifo_status & NRF24_FTX_FULL)) {
+    while (fifo_status & NRF24_FTX_FULL) {
         nrf24_read_reg(&dev, NRF24_FIFO_STATUS, &fifo_status, 1);
     }
     memset(buf + 1, 0xFF, PAYLOAD_SIZE);
