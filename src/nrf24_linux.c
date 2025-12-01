@@ -359,7 +359,7 @@ int nrf24_set_data_rate(nrf24_t *dev, rf24_data_rate_t rate)
     /* Clear DR bit */
     rf_setup &= ~NRF24_RF_DR;
 
-    rf_setup = rate ? rf_setup | RF24_DR_2MBPS : rf_setup | RF24_DR_2MBPS;
+    rf_setup = rate ? rf_setup | RF24_DR_2MBPS : rf_setup | RF24_DR_1MBPS;
 
     nrf24_unset_ce(dev);
     nrf24_write_reg(dev, NRF24_RF_SETUP, &rf_setup, 1);

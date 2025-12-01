@@ -91,11 +91,12 @@ int main(int argc, char *argv[])
         total_bytes += n;
 
         buf[0] = NRF24_W_TX_PAYLOAD; // Byte 0 is hardcoded to the command
+
         // The FIFO holds 3 full payloads, so we queue 3 at a time
         // and then wait for it to be empty.
         nrf24_read_reg(&dev, NRF24_FIFO_STATUS, &fifo_status, 1);
-        nrf24_read_reg(&dev, NRF24_CONFIG, &config, 1);
-        status = nrf24_get_status(&dev);
+        // nrf24_read_reg(&dev, NRF24_CONFIG, &config, 1);
+        // status = nrf24_get_status(&dev);
 
         // printf("config = %0X \n", config);
         // printf("status = %0X \n", status);
@@ -104,31 +105,22 @@ int main(int argc, char *argv[])
 
         if (!(fifo_status & NRF24_FTX_FULL)) {
             nrf24_command(&dev, buf, 1 + dev.payload_size);
-            //usleep(2000); /* 2 ms */
         } else {
-            //printf("FIFO IS FULL, WE ARE WAITIIIIING\n");
+            // Fifo is full, we are waiting
             while ((fifo_status & NRF24_FTX_FULL)) {
                 nrf24_read_reg(&dev, NRF24_FIFO_STATUS, &fifo_status, 1);
             }
         }
-
-        /*rc = nrf24_send(&dev, buf, n);
-
-        // printf("sending bytes: ");
-        // for (int i = 0; i < PAYLOAD_SIZE; i++) {
-        //     printf("%c", buf[i]);
-        // }
-        // 
-        // printf("\n");
-
-        if (rc < 0) {
-            fprintf(stderr, "send error %d\n", rc);
-            break;
-        }
-
-        // Wait for this payload to be transmitted 
-        nrf24_wait_until_sent(&dev);*/
+        usleep(2000);
     }
+
+    // Send a payload of 32 1s to stop the transmission
+    nrf24_read_reg(&dev, NRF24_FIFO_STATUS, &fifo_status, 1);
+    while ((fifo_status & NRF24_FTX_FULL)) {
+        nrf24_read_reg(&dev, NRF24_FIFO_STATUS, &fifo_status, 1);
+    }
+    memset(buf + 1, 0xFF, PAYLOAD_SIZE);
+    nrf24_command(&dev, buf, 1 + dev.payload_size);
 
     double t_end = now_seconds();
     double elapsed = t_end - t_start;

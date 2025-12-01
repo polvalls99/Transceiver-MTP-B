@@ -19,6 +19,32 @@ static double now_seconds(void)
     return (double)ts.tv_sec + (double)ts.tv_nsec / 1e9;
 }
 
+// XOR wizardry that returns 1 if the whole buffer is 0xFF
+int is_all_ff(const void *buf, size_t len) {
+    const unsigned char *p = buf;
+    size_t i = 0;
+
+    // Align to word boundary for performance
+    for (; i < len && ((uintptr_t)&p[i] & (sizeof(size_t)-1)); i++)
+        if (p[i] != 0xFF)
+            return 0;
+
+    // Compare whole machine words
+    size_t ff = ~(size_t)0;
+    for (; i + sizeof(size_t) <= len; i += sizeof(size_t))
+        if (*(size_t *)(p + i) != ff)
+            return 0;
+
+    // Tail
+    for (; i < len; i++)
+        if (p[i] != 0xFF)
+            return 0;
+
+    return 1;
+}
+
+uint8_t mega_buff [PAYLOAD_SIZE * 2000];
+
 int main(int argc, char *argv[])
 {
     if (argc != 3) {
@@ -48,7 +74,7 @@ int main(int argc, char *argv[])
                         SPI_DEVICE,
                         CE_PIN,
                         SPI_SPEED,
-                        RF24_DR_2MBPS,
+                        RF24_DR_1MBPS,
                         RF_CHANNEL,
                         PAYLOAD_SIZE,
                         5,
@@ -62,36 +88,68 @@ int main(int argc, char *argv[])
     }
 
 
-    /* Debug: print configuration once */
-    nrf24_debug_dump(&dev);
-
-
     /* RX node listens on pipe 1 with the same address as TX's writing pipe */
     nrf24_open_reading_pipe(&dev, 1, addr, 5);
     nrf24_power_up_rx(&dev);
 
-    uint8_t buf[PAYLOAD_SIZE];
+    /* Debug: print configuration once */
+    nrf24_debug_dump(&dev);
+
+    uint8_t buf[PAYLOAD_SIZE + 1];
     size_t total_bytes = 0;
+    uint8_t fifo_status;
 
     printf("Waiting for data...\n");
 
-    while (1) {
-        if (nrf24_data_ready(&dev)) {
-            int got = nrf24_get_payload(&dev, buf, sizeof(buf));
-            fflush(stdout);
-            if (got > 0) {
-                fwrite(buf, 1, (size_t)got, f);
-                total_bytes += (size_t)got;
-            }
-        } else {
-            /* Small sleep to avoid busy-waiting */
-            usleep(1000); /* 1 ms */
-        }
+    nrf24_flush_rx(&dev);
 
-        /* TODO: add a stopping condition (e.g. known file size or special frame) */
+    uint8_t eof = 0;
+
+    nrf24_read_reg(&dev, NRF24_FIFO_STATUS, &fifo_status, 1);
+
+    while (fifo_status & NRF24_FRX_EMPTY) {
+        nrf24_read_reg(&dev, NRF24_FIFO_STATUS, &fifo_status, 1);
     }
 
-    /* Not reached in this simple example */
+    while (total_bytes < 28000) {
+
+        //nrf24_read_reg(&dev, NRF24_FIFO_STATUS, &fifo_status, 1);
+
+        if (!(fifo_status & NRF24_FRX_EMPTY)) {
+            buf[0] = NRF24_R_RX_PAYLOAD;
+            //nrf24_command(&dev, buf, 1 + dev.payload_size);
+            nrf24_command(&dev, buf, 1 + dev.payload_size);
+            memcpy(mega_buff + total_bytes, buf + 1, PAYLOAD_SIZE);
+            //nrf24_get_payload(&dev, buf, PAYLOAD_SIZE);
+            total_bytes += PAYLOAD_SIZE;
+        } else {
+            //printf("FIFO is empty, we are waitiiing\n");
+           // while (fifo_status & NRF24_FRX_EMPTY) {
+           //     nrf24_read_reg(&dev, NRF24_FIFO_STATUS, &fifo_status, 1);
+           // }
+            //printf("FIFO is not empty anymore\n");
+        }
+      // if (nrf24_data_ready(&dev)) {
+      //     int got = nrf24_get_payload(&dev, buf, sizeof(buf));
+      //     fflush(stdout);
+      //     if (got > 0) {
+      //         fwrite(buf, 1, (size_t)got, f);
+      //         total_bytes += (size_t)got;
+      //     }
+      // } else {
+      //     /* Small sleep to avoid busy-waiting */
+      //     usleep(1000); /* 1 ms */
+      // }
+      // 
+      //  /* TODO: add a stopping condition (e.g. known file size or special frame) */
+      // 
+      //eof = is_all_ff(buf, PAYLOAD_SIZE);
+    }
+
+    fwrite(mega_buff, 1, (total_bytes * PAYLOAD_SIZE), f);
+
+    nrf24_set_ce(&dev, 0);
+
     nrf24_close(&dev);
     fclose(f);
     return 0;
