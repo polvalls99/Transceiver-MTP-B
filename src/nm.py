@@ -128,7 +128,7 @@ def create_radio_object(CE_PIN) -> NRF24:
         pa_level      = RF24_PA.MIN,
     )
 
-    address = b"NMND"
+    address = b"ABCD"
     nrf.open_writing_pipe(address)
     nrf.open_reading_pipe(RF24_RX_ADDR.P1, address)
 
