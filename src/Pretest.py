@@ -328,7 +328,7 @@ def ACT_AS_RX(nrf: NRF24, other_channels: list[int]) -> bytes:
 
 def save_file_usb(content: bytes) -> None:
     file_saved = False
-    while (file_saved = False):
+    while (file_saved == False):
         usb_mount_path = get_usb_mount_path()
         if usb_mount_path:
             INFO("SE HA ENCONTRADO UN USB PA GUARDAR LAS COSAS ERMANIKO") 
@@ -415,7 +415,7 @@ def main():
                 SUCC("ARCHIVO GUARDADO EN EL USB")
             else:
                 INFO("NO SA ENCONTRAO EL USB PA GUARDAR, LO GUARDO POR AHI")
-                Path("file_received").write_bytes(content)
+                Path("file_received.txt").write_bytes(content)
                 save_file_usb(content)
 
     nrf.power_down()
