@@ -89,7 +89,7 @@ def run(hostname='localhost', port=8888):
         pi.set_mode(cfg.OUT_GPIO_7SEG[i], pigpio.OUTPUT)
 
     # declare child process
-    t = threading.Thread(target=sender_auto.run)
+    t = threading.Thread(target=Pretest.main)
 
     # initialize switch read value
     sw_netw = 1
@@ -145,7 +145,7 @@ def run(hostname='localhost', port=8888):
                 if t.is_alive():
                     t.join()
 
-                t = threading.Thread(target=sender_auto.run)
+                t = threading.Thread(target=Pretest.main, args=(1, 0))
                 t.start()
 
 
@@ -157,7 +157,7 @@ def run(hostname='localhost', port=8888):
                 if t.is_alive():
                     t.join()
 
-                t = threading.Thread(target=receiver_auto.run)
+                t = threading.Thread(target=Pretest.main, args=(0, 0))
                 t.start()
 
 

@@ -24,6 +24,8 @@ from enum import Enum
 
 import argparse
 
+import berrybeam_config as cfg
+
 os.system("sudo pigpiod")
 os.system("clear")
 # :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
@@ -223,6 +225,7 @@ def choose_occupied_channel(nrf: NRF24, other_channels: list[int], channel_idx) 
 
 # :::: FLOW FUNCTIONS :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 def ACT_AS_TX(nrf: NRF24, content: bytes, own_channels: list[int]) -> None:
+    cfg.set_state(cfg.STATE_SEND_ACTIVE)
     INFO("SOY UN TRANSMISOR PUTA")
     channel = choose_free_channel(nrf, own_channels)
     nrf.set_channel(channel)
@@ -263,6 +266,7 @@ def ACT_AS_TX(nrf: NRF24, content: bytes, own_channels: list[int]) -> None:
 
 def ACT_AS_RX(nrf: NRF24, other_channels: list[int]) -> bytes:
     INFO("SOY UN RECEPTOR")
+    cfg.set_state(cfg.STATE_RECV_WAIT)
     channel, channel_idx = choose_occupied_channel(nrf, other_channels, 0)
     nrf.set_channel(channel)
 
@@ -285,6 +289,7 @@ def ACT_AS_RX(nrf: NRF24, other_channels: list[int]) -> bytes:
                 INFO("VOY A PROBAR A CAMBIAR DE CANAL PORK ESTE VA TO MAL")
                 channel, channel_idx = choose_occupied_channel(nrf, other_channels, channel_idx+1)
                 nrf.set_channel(channel)
+                cfg.set_state(cfg.STATE_RECV_WAIT)
             continue
 
         frame: bytes = nrf.get_payload()
@@ -366,6 +371,7 @@ def main(is_tx=0, is_standalone=0):
         is_tx = args.tx
 
     nrf            = create_radio_object(CE_PIN) 
+    cfg.set_state(cfg.STATE_IDLE)
     usb_mount_path = get_usb_mount_path()
     file_path      = find_valid_txt_file_in_usb(usb_mount_path)
 
@@ -384,6 +390,7 @@ def main(is_tx=0, is_standalone=0):
         msg = None
         INFO("ESTE NODO HA SIDO ESCOGIDO COMO TX")
         while not file_path:
+            cfg.set_state(cfg.STATE_SEND_WAIT)
             if not usb_mount_path:
                 msg = "ESPERANDO A QUE SE INTRODUZCA UN USB..."
             else:
