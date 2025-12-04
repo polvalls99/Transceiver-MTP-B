@@ -60,20 +60,6 @@ def INFO(message: str)  -> None: print(f"{BLUE('[INFO]:')} {message}")
 
 
 # :::: NODE CONFIG ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-def get_id() -> str:
-    id = Path("~/node_id").expanduser().resolve().read_text().strip()
-    INFO(f"ID detectao {id}")
-    return id
-
-def get_CE_pin(id) -> int:
-
-    if   id == "tan0" or id == "tan1":
-        pin = CE_PIN_A
-    elif id == "tbn0" or id == "tbn1":
-        pin = CE_PIN_B
-
-    return pin
-
 class Role(Enum):
     TRANSMITTER = "TRANSMITTER"
     RECEIVER    = "RECEIVER"
@@ -182,26 +168,6 @@ def find_valid_txt_file_in_usb(usb_mount_path: Path) -> Path | None:
 
 
 # :::: CHANNELS :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-def get_channels_based_on_node_id(all_channels: list[int], id) -> tuple[list[int], list[int]]:
-
-    if   id == "tan0":
-        offset = 0
-    elif id == "tan1":
-        offset = 1
-    elif id == "tbn0":
-        offset = 2
-    elif id == "tbn1":
-        offset = 3
-
-    INFO(f"MI OFFSET ES {offset}")
-    own_channels = all_channels[offset : -1 : 4]
-    other_channels = all_channels.copy()
-
-    for channel in own_channels:
-        other_channels.remove(channel)
-
-    return own_channels, other_channels
-
 def is_channel_free(nrf: NRF24) -> int:
     return nrf._nrf_read_reg(NRF24.RPD, 1)[0] & 1
 
