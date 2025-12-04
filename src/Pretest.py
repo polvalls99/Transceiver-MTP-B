@@ -111,7 +111,7 @@ def create_radio_object(CE_PIN) -> NRF24:
         payload_size  = RF24_PAYLOAD.DYNAMIC,
         address_bytes = 4,
         crc_bytes     = RF24_CRC.BYTES_2,
-        pa_level      = RF24_PA.MIN,
+        pa_level      = RF24_PA.HIGH,
     )
 
     address = b"ABCD"
