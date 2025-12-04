@@ -222,7 +222,7 @@ def choose_occupied_channel(nrf: NRF24, other_channels: list[int], channel_idx) 
 
 
 # :::: FLOW FUNCTIONS :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-def ACT_AS_TX(nrf: NRF24, content: bytes, own_channels: list[int], first_node) -> None:
+def ACT_AS_TX(nrf: NRF24, content: bytes, own_channels: list[int]) -> None:
     INFO("SOY UN TRANSMISOR PUTA")
     channel = choose_free_channel(nrf, own_channels)
     nrf.set_channel(channel)
@@ -350,17 +350,20 @@ def save_file_usb(content: bytes) -> None:
 
 
 # :::: MAIN :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-def main():
+def main(is_tx=0, is_standalone=0):
     """
     Main flow of the application
     """
-    parser = argparse.ArgumentParser(description="NRF24 Pretest")
-    parser.add_argument(
-        "--tx",
-        action="store_true",      # Si se pone la flag vale True, si no False
-        help="Declara el nodo como transmisor",
-    )
-    args = parser.parse_args()
+    if is_standalone:
+        parser = argparse.ArgumentParser(description="NRF24 Pretest")
+        parser.add_argument(
+            "--tx",
+            action="store_true",      # Si se pone la flag vale True, si no False
+            help="Declara el nodo como transmisor",
+        )
+        args = parser.parse_args()
+
+        is_tx = args.tx
 
     nrf            = create_radio_object(CE_PIN) 
     usb_mount_path = get_usb_mount_path()
@@ -376,9 +379,7 @@ def main():
 
     content        = None
 
-    first_node = args.tx
-
-    if first_node:
+    if is_tx:
         last_msg = None
         msg = None
         INFO("ESTE NODO HA SIDO ESCOGIDO COMO TX")
@@ -399,32 +400,21 @@ def main():
         INFO("HAY UN USB CON UN ARCHIVO DENTRO")
         INFO(f"SE HA ENCONTRADO EL SIGUIENTE ARCHIVO:{file_path}")
         content = file_path.read_bytes()
-        ACT_AS_TX(nrf, content, own_channels, first_node)
+        ACT_AS_TX(nrf, content, own_channels)
 
     else:
         INFO("NO HE SIDO ESCOGIDO COMO TX :((")
-        #La parte de codigo dentro de el if se deberia de eliminar y dejar solo la del else, de momento lo dejo igual
-        #porque no deberia de dar problemas, y en caso de que no se quiera hacer servir el script con la logica de settear el primer nodo
-        #y esperar al usb, va a funcionar igual. De tal manera que, se utilice la logica del primer nodo o no, funciona.
-        if file_path:
-            INFO("HAY UN USB CON UN ARCHIVO DENTRO")
-            INFO(f"SE HA ENCONTRADO EL SIGUIENTE ARCHIVO:{file_path}")
-            content = file_path.read_bytes()
-            first_node = True #Esta linea habilita el uso de las dos logicas
-            ACT_AS_TX(nrf, content, own_channels, first_node)
+        content = ACT_AS_RX(nrf, other_channels)
+        usb_mount_path = get_usb_mount_path()
+        if usb_mount_path:
+            INFO("SE HA ENCONTRADO UN USB PA GUARDAR LAS COSAS ERMANIKO") 
+            (usb_mount_path / "file_received.txt").write_bytes(content)
+            SUCC("ARCHIVO GUARDADO EN EL USB")
         else:
-            INFO("NO HAY UN USB CON UN ARCHIVO DENTRO")
-            content = ACT_AS_RX(nrf, other_channels)
-            usb_mount_path = get_usb_mount_path()
-            if usb_mount_path:
-                INFO("SE HA ENCONTRADO UN USB PA GUARDAR LAS COSAS ERMANIKO") 
-                (usb_mount_path / "file_received.txt").write_bytes(content)
-                SUCC("ARCHIVO GUARDADO EN EL USB")
-            else:
-                INFO("NO SA ENCONTRAO EL USB PA GUARDAR, LO GUARDO POR AHI")
-                Path("file_received.txt").write_bytes(content)
-                INFO("BUSCANDO UN USB PARA GUARDAR EL ARCHIVO...")
-                save_file_usb(content)
+            INFO("NO SA ENCONTRAO EL USB PA GUARDAR, LO GUARDO POR AHI")
+            Path("file_received.txt").write_bytes(content)
+            INFO("BUSCANDO UN USB PARA GUARDAR EL ARCHIVO...")
+            save_file_usb(content)
 
     nrf.power_down()
     
@@ -436,7 +426,7 @@ def main():
 
 if __name__ == "__main__":
     try:
-        main()
+        main(is_standalone=1)
     except KeyboardInterrupt:
         ERROR("Process interrupted by the user")
     finally:
