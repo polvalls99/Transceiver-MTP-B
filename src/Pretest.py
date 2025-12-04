@@ -39,6 +39,7 @@ BYTES_IN_FRAME              = 31
 channel_read_timeout        = 1
 PERSEVERANCE                = 100
 channel_permanence_timeout  = 10
+channel_tx_timeout          = 30
 # :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 
@@ -246,11 +247,18 @@ def ACT_AS_TX(nrf: NRF24, content: bytes, own_channels: list[int], first_node) -
     cycle_len = len(cycle)
 
     idx = 0
+
+    tic = time.time()
     while True:
         message = cycle[idx % cycle_len]
         nrf.send(message)
         idx += 1
-
+        tac = time.time()
+        if (tac- tic) > channel_tx_timeout:
+            INFO("VOY A CAMBIAR DE CANAL A VER SI HAY OTRO MEJOR")
+            channel = choose_free_channel(nrf, own_channels)
+            nrf.set_channel(channel)
+            tic = time.time()
     return
 
 def ACT_AS_RX(nrf: NRF24, other_channels: list[int]) -> bytes:
