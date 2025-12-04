@@ -416,6 +416,7 @@ def main():
             else:
                 INFO("NO SA ENCONTRAO EL USB PA GUARDAR, LO GUARDO POR AHI")
                 Path("file_received.txt").write_bytes(content)
+                INFO("BUSCANDO UN USB PARA GUARDAR EL ARCHIVO...")
                 save_file_usb(content)
 
     nrf.power_down()
