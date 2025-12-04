@@ -182,7 +182,7 @@ def choose_free_channel(nrf: NRF24, own_channels: list[int]) -> int:
     for i in range(number_of_cycles):
         for idx, channel in enumerate(own_channels):
             nrf.set_channel(channel)
-            time.sleep(.2)
+            time.sleep(.1)
             channel_occupability[idx] += is_channel_free(nrf)
 
     selected = own_channels[0]
@@ -206,11 +206,10 @@ def choose_occupied_channel(nrf: NRF24, other_channels: list[int], channel_idx) 
         INFO(f"TOY PROBANDO EN EL CANAL {channel} ")
         tic = time.time()
         tac = time.time()
-        INFO(f"TOY PROBANDO 2 EN EL CANAL {channel} ")
         while (tac - tic) < channel_read_timeout:
             tac = time.time()
             nrf.set_channel(channel)
-            time.sleep(.2)
+            time.sleep(.1)
 
             if not nrf.data_ready(): continue
             
