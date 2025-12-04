@@ -37,8 +37,8 @@ CE_PIN                      = 25
 RECEIVER_TIMEOUT_S          = 20
 BYTES_IN_FRAME              = 31
 channel_read_timeout        = 1
-PERSEVERANCE                = 5
-channel_permanence_timeout  = 1
+PERSEVERANCE                = 100
+channel_permanence_timeout  = 10
 # :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 
@@ -366,7 +366,7 @@ def save_file_usb(content: bytes) -> None:
         usb_mount_path = get_usb_mount_path()
         if usb_mount_path:
             INFO("SE HA ENCONTRADO UN USB PA GUARDAR LAS COSAS ERMANIKO") 
-            (usb_mount_path / "file_received").write_bytes(content)
+            (usb_mount_path / "file_received.txt").write_bytes(content)
             file_saved = True
             SUCC("ARCHIVO GUARDADO EN EL USB")
     return
@@ -445,7 +445,7 @@ def main():
             usb_mount_path = get_usb_mount_path()
             if usb_mount_path:
                 INFO("SE HA ENCONTRADO UN USB PA GUARDAR LAS COSAS ERMANIKO") 
-                (usb_mount_path / "file_received").write_bytes(content)
+                (usb_mount_path / "file_received.txt").write_bytes(content)
                 SUCC("ARCHIVO GUARDADO EN EL USB")
             else:
                 INFO("NO SA ENCONTRAO EL USB PA GUARDAR, LO GUARDO POR AHI")
