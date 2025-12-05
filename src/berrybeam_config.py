@@ -8,22 +8,24 @@ MODE_NETWORK = 3
 STATE_IDLE             = 0
 STATE_RECV_WAIT        = 1
 STATE_RECV_ACTIVE      = 2
-STATE_SEND_WAIT        = 3
-STATE_SEND_ACTIVE      = 4
-STATE_NETW_WAIT        = 5
-STATE_NETW_RECV_ACTIVE = 6
-STATE_NETW_SEND_ACTIVE = 7
+STATE_RECV_WAIT_USB    = 3
+STATE_RECV_USB_DONE    = 4
+STATE_SEND_WAIT        = 5
+STATE_SEND_ACTIVE      = 6
+STATE_NETW_WAIT        = 7
+STATE_NETW_RECV_ACTIVE = 8
+STATE_NETW_SEND_ACTIVE = 9
 
 # GPIO pins
-IN_GPIO_SWITCH_SP_0     = 5  # physical pin 29
-IN_GPIO_SWITCH_RECV     = 6  # physical pin 31
-IN_GPIO_SWITCH_SEND     = 12 # physical pin 32
-IN_GPIO_SWITCH_NETW     = 13 # physical pin 33
-OUT_GPIO_LED_PWR_ON     = 18 # physical pin 12, red
-OUT_GPIO_LED_BOOT_UP    = 20 # physical pin 38, yellow
-OUT_GPIO_LED_TX_ONGOING = 19 # physical pin 35, white
-OUT_GPIO_LED_RX_ONGOING = 18 # physical pin 18, green
-OUT_GPIO_7SEG = [23, 22, 27, 17] # index 0 is seg a, index 6 is segment g
+IN_GPIO_SWITCH_SP_0     = 19 #5
+IN_GPIO_SWITCH_RECV     = 4  #7
+IN_GPIO_SWITCH_SEND     = 5 #26
+IN_GPIO_SWITCH_NETW     = 26 #19
+#OUT_GPIO_LED_PWR_ON     = 18
+OUT_GPIO_LED_RX_ONGOING = 12 # Green
+OUT_GPIO_LED_BOOT_UP    = 20 # Yellow
+OUT_GPIO_LED_TX_ONGOING = 16 # White
+OUT_GPIO_7SEG = [23, 18, 15, 14] # index 0 is seg a, index 6 is segment g
 
 # Global mode variable. DO NOT CHANGE MANUALLY, use always the hanlder function
 APP_MODE = 0
@@ -56,8 +58,17 @@ def set_state(state):
     The state is then read by the top level to set the 7 segment accordingly
     """
     global STATE
-    valid_states = [STATE_IDLE, STATE_RECV_WAIT, STATE_RECV_ACTIVE, STATE_SEND_WAIT,
-                    STATE_SEND_ACTIVE, STATE_NETW_WAIT, STATE_NETW_RECV_ACTIVE, STATE_NETW_SEND_ACTIVE]
+    valid_states = [STATE_IDLE            ,
+                    STATE_RECV_WAIT       ,
+                    STATE_RECV_ACTIVE     ,
+                    STATE_RECV_WAIT_USB   ,
+                    STATE_RECV_USB_DONE   ,
+                    STATE_SEND_WAIT       ,
+                    STATE_SEND_ACTIVE     , 
+                    STATE_NETW_WAIT       ,
+                    STATE_NETW_RECV_ACTIVE,
+                    STATE_NETW_SEND_ACTIVE]
+
     
     if state not in valid_states:
         raise ValueError(f"Invalid mode specified: {mode}. Must be one of {valid_modes}")

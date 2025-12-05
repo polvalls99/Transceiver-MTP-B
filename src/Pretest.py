@@ -188,12 +188,18 @@ def choose_free_channel(nrf: NRF24, own_channels: list[int]) -> int:
             time.sleep(.1)
             channel_occupability[idx] += is_channel_free(nrf)
 
+            if cfg.STATE != cfg.STATE_SEND_ACTIVE:
+                return -1
+
     selected = own_channels[0]
     n        = number_of_cycles + 1
     for occ, channel in zip(channel_occupability, own_channels):
         if occ < n:
             selected = channel
             n        = occ
+
+        if cfg.STATE != cfg.STATE_SEND_ACTIVE:
+            return -1
 
     INFO(f"POS TRANSMITO EN EL CANAL {selected}")
     INFO(F"LA OKUPABILIDAD DE ESE CANAL ES {n}")
@@ -214,10 +220,15 @@ def choose_occupied_channel(nrf: NRF24, other_channels: list[int], channel_idx) 
             nrf.set_channel(channel)
             time.sleep(.1)
 
+            if cfg.STATE != cfg.STATE_RECV_WAIT:
+                INFO(f"HAN APRETAO UN BOTON ASI Q ME LARGO")
+                return 0, 0
+
             if not nrf.data_ready(): continue
             
             INFO(f"POS ESCUCHO EN EL CANAL {channel}")
             return channel, channel_idx
+
 
         channel_idx += 1
 # :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
@@ -225,11 +236,13 @@ def choose_occupied_channel(nrf: NRF24, other_channels: list[int], channel_idx) 
 
 # :::: FLOW FUNCTIONS :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 def ACT_AS_TX(nrf: NRF24, content: bytes, own_channels: list[int]) -> None:
-    cfg.set_state(cfg.STATE_SEND_ACTIVE)
     INFO("SOY UN TRANSMISOR PUTA")
     channel = choose_free_channel(nrf, own_channels)
     nrf.set_channel(channel)
-    
+
+    if cfg.STATE != cfg.STATE_SEND_ACTIVE:
+        return -1
+
     # split the bytes into frames with a FrameID
     frames = [
         FrameID.to_bytes(1) + content[i : i + BYTES_IN_FRAME]
@@ -262,6 +275,9 @@ def ACT_AS_TX(nrf: NRF24, content: bytes, own_channels: list[int]) -> None:
             channel = choose_free_channel(nrf, own_channels)
             nrf.set_channel(channel)
             tic = time.time()
+
+        if cfg.STATE != cfg.STATE_SEND_ACTIVE:
+            break
     return
 
 def ACT_AS_RX(nrf: NRF24, other_channels: list[int]) -> bytes:
@@ -282,14 +298,21 @@ def ACT_AS_RX(nrf: NRF24, other_channels: list[int]) -> bytes:
     tic = time.time()
     
     while not file_received:
-        
+
+        if cfg.STATE != cfg.STATE_RECV_WAIT and cfg.STATE != cfg.STATE_RECV_ACTIVE:
+            INFO("APA ADEU MACO QUE VAIG BE MEN VAII")
+            return
+
         if not nrf.data_ready():
             tac = time.time()
             if (tac- tic) > channel_permanence_timeout:
                 INFO("VOY A PROBAR A CAMBIAR DE CANAL PORK ESTE VA TO MAL")
                 channel, channel_idx = choose_occupied_channel(nrf, other_channels, channel_idx+1)
+
+                if cfg.STATE != cfg.STATE_RECV_WAIT:
+                    return
+
                 nrf.set_channel(channel)
-                cfg.set_state(cfg.STATE_RECV_WAIT)
             continue
 
         frame: bytes = nrf.get_payload()
@@ -311,6 +334,8 @@ def ACT_AS_RX(nrf: NRF24, other_channels: list[int]) -> bytes:
 
             is_reading_frames = True
 
+            cfg.set_state(cfg.STATE_RECV_ACTIVE)
+
 
 
         if is_reading_frames and (frame[0] < 0xFF):
@@ -331,11 +356,19 @@ def ACT_AS_RX(nrf: NRF24, other_channels: list[int]) -> bytes:
                 
                 tries += 1
                 if tries >= PERSEVERANCE:
+                    cfg.set_state(cfg.STATE_RECV_WAIT)
                     INFO("VOY A PROBAR A CAMBIAR DE CANAL PORK ESTE VA TO MAL")
+
+                    if cfg.state != cfg.STATE_RECV_WAIT:
+                        return
+
                     channel, channel_idx = choose_occupied_channel(nrf, other_channels, channel_idx+1)
+
+
                     nrf.set_channel(channel)
                     
         tic = time.time()
+
 
 
 def save_file_usb(content: bytes) -> None:
@@ -347,6 +380,10 @@ def save_file_usb(content: bytes) -> None:
             (usb_mount_path / "file_received.txt").write_bytes(content)
             file_saved = True
             SUCC("ARCHIVO GUARDADO EN EL USB")
+            cfg.set_state(cfg.STATE_RECV_USB_DONE)
+
+        if cfg.STATE != cfg.STATE_RECV_WAIT_USB:
+            return
     return
 # :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
@@ -389,8 +426,9 @@ def main(is_tx=0, is_standalone=0):
         last_msg = None
         msg = None
         INFO("ESTE NODO HA SIDO ESCOGIDO COMO TX")
+        cfg.set_state(cfg.STATE_SEND_WAIT)
+
         while not file_path:
-            cfg.set_state(cfg.STATE_SEND_WAIT)
             if not usb_mount_path:
                 msg = "ESPERANDO A QUE SE INTRODUZCA UN USB..."
             else:
@@ -403,10 +441,14 @@ def main(is_tx=0, is_standalone=0):
             usb_mount_path = get_usb_mount_path()
             file_path      = find_valid_txt_file_in_usb(usb_mount_path)
 
+            if cfg.STATE != cfg.STATE_SEND_WAIT:
+                nrf.power_down()
+                return
 
         INFO("HAY UN USB CON UN ARCHIVO DENTRO")
         INFO(f"SE HA ENCONTRADO EL SIGUIENTE ARCHIVO:{file_path}")
         content = file_path.read_bytes()
+        cfg.set_state(cfg.STATE_SEND_ACTIVE)
         ACT_AS_TX(nrf, content, own_channels)
 
     else:
@@ -417,10 +459,12 @@ def main(is_tx=0, is_standalone=0):
             INFO("SE HA ENCONTRADO UN USB PA GUARDAR LAS COSAS ERMANIKO") 
             (usb_mount_path / "file_received.txt").write_bytes(content)
             SUCC("ARCHIVO GUARDADO EN EL USB")
+            cfg.set_state(cfg.STATE_RECV_USB_DONE)
         else:
             INFO("NO SA ENCONTRAO EL USB PA GUARDAR, LO GUARDO POR AHI")
             Path("file_received.txt").write_bytes(content)
             INFO("BUSCANDO UN USB PARA GUARDAR EL ARCHIVO...")
+            cfg.set_state(cfg.STATE_RECV_WAIT_USB)
             save_file_usb(content)
 
     nrf.power_down()

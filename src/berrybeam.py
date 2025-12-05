@@ -9,8 +9,6 @@ Usage:
 
 import argparse
 import sys
-import receiver_auto
-import sender_auto
 import standalone
 import berrybeam_config as cfg
 

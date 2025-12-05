@@ -8,8 +8,7 @@
 # ====================================================================
 
 import threading
-import receiver_auto
-import sender_auto
+import Pretest
 import berrybeam_config as cfg
 import pigpio
 import time
@@ -20,19 +19,21 @@ def set_7seg_state(pi, state):
     """
 
     STATE_TO_CODE = {
-        cfg.STATE_IDLE:             (0, 0, 0, 0),
-        cfg.STATE_RECV_WAIT:        (0, 0, 0, 1),
-        cfg.STATE_RECV_ACTIVE:      (0, 0, 1, 0),
-        cfg.STATE_SEND_ACTIVE:      (0, 0, 1, 1),
-        cfg.STATE_SEND_WAIT:        (0, 1, 0, 0),
-        cfg.STATE_NETW_WAIT:        (0, 1, 0, 1),
-        cfg.STATE_NETW_RECV_ACTIVE: (0, 1, 1, 0),
-        cfg.STATE_NETW_SEND_ACTIVE: (0, 1, 1, 1),
+            cfg.STATE_IDLE         : (0, 0, 0, 0),
+        cfg.STATE_RECV_WAIT        : (0, 0, 0, 1),
+        cfg.STATE_RECV_ACTIVE      : (0, 0, 1, 0),
+        cfg.STATE_RECV_WAIT_USB    : (0, 0, 1, 1),
+        cfg.STATE_RECV_USB_DONE    : (0, 1, 0, 0),
+        cfg.STATE_SEND_WAIT        : (0, 1, 0, 1),
+        cfg.STATE_SEND_ACTIVE      : (0, 1, 1, 0),
+        cfg.STATE_NETW_WAIT        : (0, 1, 1, 1),
+        cfg.STATE_NETW_RECV_ACTIVE : (1, 0, 0, 0),
+        cfg.STATE_NETW_SEND_ACTIVE : (1, 0, 0, 1),
     }
 
     code = STATE_TO_CODE.get(state, [0, 0, 0, 0])  # F by default just in case
 
-    print(code)
+    #print(code)
 
     for i in range(4):
         pi.write(cfg.OUT_GPIO_7SEG[i], code[i])
@@ -42,6 +43,8 @@ def set_leds(pi, state):
     """
     Sets leds according to the state
     """
+
+    
     rx_led = 0
     tx_led = 0
     if   state == cfg.STATE_NETW_RECV_ACTIVE or state == cfg.STATE_RECV_ACTIVE: rx_led = 1
@@ -73,7 +76,7 @@ def run(hostname='localhost', port=8888):
     pi.set_mode(cfg.IN_GPIO_SWITCH_RECV    , pigpio.INPUT)
     pi.set_mode(cfg.IN_GPIO_SWITCH_SEND    , pigpio.INPUT)
     pi.set_mode(cfg.IN_GPIO_SWITCH_SP_0    , pigpio.INPUT)
-    pi.set_mode(cfg.OUT_GPIO_LED_PWR_ON    , pigpio.OUTPUT)
+    #pi.set_mode(cfg.OUT_GPIO_LED_PWR_ON    , pigpio.OUTPUT)
     pi.set_mode(cfg.OUT_GPIO_LED_BOOT_UP   , pigpio.OUTPUT)
     pi.set_mode(cfg.OUT_GPIO_LED_TX_ONGOING, pigpio.OUTPUT)
     pi.set_mode(cfg.OUT_GPIO_LED_RX_ONGOING, pigpio.OUTPUT)
@@ -98,8 +101,10 @@ def run(hostname='localhost', port=8888):
     sw_idle = 1
 
     # indicate that we are booted up
-    pi.write(cfg.OUT_GPIO_LED_PWR_ON , 1)
+    #pi.write(cfg.OUT_GPIO_LED_PWR_ON , 1)
     pi.write(cfg.OUT_GPIO_LED_BOOT_UP, 1)
+    pi.write(cfg.OUT_GPIO_LED_TX_ONGOING, 1)
+    pi.write(cfg.OUT_GPIO_LED_RX_ONGOING, 1)
 
     # wait 1 second to give time for restistors to be set up
     time.sleep(1)
@@ -170,7 +175,7 @@ def run(hostname='localhost', port=8888):
     except Exception:
         traceback.print_exc()
     finally:
-        pi.write(cfg.OUT_GPIO_LED_PWR_ON    , 0)
+        #pi.write(cfg.OUT_GPIO_LED_PWR_ON    , 0)
         pi.write(cfg.OUT_GPIO_LED_BOOT_UP   , 0)
         pi.write(cfg.OUT_GPIO_LED_TX_ONGOING, 0)
         pi.write(cfg.OUT_GPIO_LED_RX_ONGOING, 0)
