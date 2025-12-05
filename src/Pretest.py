@@ -39,9 +39,9 @@ CE_PIN                      = 25
 RECEIVER_TIMEOUT_S          = 20
 BYTES_IN_FRAME              = 31
 channel_read_timeout        = 1
-PERSEVERANCE                = 100
+PERSEVERANCE                = 1000
 channel_permanence_timeout  = 10
-channel_tx_timeout          = 30
+channel_tx_timeout          = 120
 # :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 
@@ -243,16 +243,22 @@ def ACT_AS_TX(nrf: NRF24, content: bytes, own_channels: list[int]) -> None:
     if cfg.STATE != cfg.STATE_SEND_ACTIVE:
         return -1
 
+
+    if (len(content)>20e3):
+        length = 20e3
+    else:
+        length = len(content)
+    
     # split the bytes into frames with a FrameID
     frames = [
         FrameID.to_bytes(1) + content[i : i + BYTES_IN_FRAME]
-        for FrameID, i in enumerate(range(0, len(content), BYTES_IN_FRAME))
+        for FrameID, i in enumerate(range(0, length, BYTES_IN_FRAME))
     ]
 
     control_message  = bytes()
     control_message += 0xFF.to_bytes(1)              # Header reserved to control messages
     control_message += shake_256(content).digest(29) # Checksum of the file
-    control_message += len(content).to_bytes(2)      # Ammount of data to transmit
+    control_message += length.to_bytes(2)      # Ammount of data to transmit
 
     cycle = []
     cycle.append(control_message)
@@ -412,7 +418,7 @@ def main(is_tx=0, is_standalone=0):
     usb_mount_path = get_usb_mount_path()
     file_path      = find_valid_txt_file_in_usb(usb_mount_path)
 
-    all_channels   = [channel for channel in range(0, 115 + 1, 5)]
+    all_channels   = [channel for channel in range(0, 50 + 1, 5)]
 
     own_channels = all_channels
 
