@@ -244,21 +244,22 @@ def ACT_AS_TX(nrf: NRF24, content: bytes, own_channels: list[int]) -> None:
         return -1
 
 
-    if (len(content)>20e3):
-        length = 20e3
+    if (len(content)>1000):
+        length = 1000
     else:
         length = len(content)
     
+    content = content[0:int(length)]
     # split the bytes into frames with a FrameID
     frames = [
         FrameID.to_bytes(1) + content[i : i + BYTES_IN_FRAME]
-        for FrameID, i in enumerate(range(0, length, BYTES_IN_FRAME))
+        for FrameID, i in enumerate(range(0, len(content), BYTES_IN_FRAME))
     ]
 
     control_message  = bytes()
     control_message += 0xFF.to_bytes(1)              # Header reserved to control messages
     control_message += shake_256(content).digest(29) # Checksum of the file
-    control_message += length.to_bytes(2)      # Ammount of data to transmit
+    control_message += len(content).to_bytes(2)      # Ammount of data to transmit
 
     cycle = []
     cycle.append(control_message)
