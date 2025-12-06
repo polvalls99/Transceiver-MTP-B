@@ -42,6 +42,9 @@ channel_read_timeout        = 1
 PERSEVERANCE                = 1000
 channel_permanence_timeout  = 10
 channel_tx_timeout          = 120
+CUT_LENGTH                  = 300000
+ZSTD_LEVEL                  = 3
+
 # :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 
@@ -60,6 +63,14 @@ def WARN(message: str)  -> None: print(f"{YELLOW('[WARN]:')} {message}")
 def INFO(message: str)  -> None: print(f"{BLUE('[INFO]:')} {message}")
 # :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
+
+# :::: CUSTOM ERROR :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+class StateChanged(Exception):
+    pass
+    #def __init__(self, message, field):
+     #   super().__init__(message)
+      #  self.field = field
+# :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 
 # :::: NODE CONFIG ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
@@ -129,7 +140,23 @@ def create_radio_object(CE_PIN) -> NRF24:
     return nrf
 # :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
+# :::: COMPRESSION :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+def compress_zstd(data, level=3) -> bytes:
+    try:
+        import zstandard as zstd
+    except Exception as e:
+        raise RuntimeError("The “zstandard” library is not installed. Install it with: pip3 install zstandard") from e
+    cctx = zstd.ZstdCompressor(level=level)
+    return cctx.compress(data)
 
+def decompress_zstd(data) -> bytes:
+    try:
+        import zstandard as zstd
+    except Exception as e:
+        raise RuntimeError("The “zstandard” library is not installed. Install it with: pip3 install zstandard") from e
+    dctx = zstd.ZstdDecompressor()
+    return dctx.decompress(data)
+# :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 # :::: USB IO :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 USB_MOUNT_PATH = Path("/media")
@@ -188,8 +215,8 @@ def choose_free_channel(nrf: NRF24, own_channels: list[int]) -> int:
             time.sleep(.1)
             channel_occupability[idx] += is_channel_free(nrf)
 
-            if cfg.STATE != cfg.STATE_SEND_ACTIVE:
-                return -1
+        if cfg.STATE != cfg.STATE_SEND_ACTIVE:
+            raise StateChanged("SEND_ACTIVE")
 
     selected = own_channels[0]
     n        = number_of_cycles + 1
@@ -198,8 +225,8 @@ def choose_free_channel(nrf: NRF24, own_channels: list[int]) -> int:
             selected = channel
             n        = occ
 
-        if cfg.STATE != cfg.STATE_SEND_ACTIVE:
-            return -1
+        #if cfg.STATE != cfg.STATE_SEND_ACTIVE:
+         #   return -1
 
     INFO(f"POS TRANSMITO EN EL CANAL {selected}")
     INFO(F"LA OKUPABILIDAD DE ESE CANAL ES {n}")
@@ -221,8 +248,7 @@ def choose_occupied_channel(nrf: NRF24, other_channels: list[int], channel_idx) 
             time.sleep(.1)
 
             if cfg.STATE != cfg.STATE_RECV_WAIT:
-                INFO(f"HAN APRETAO UN BOTON ASI Q ME LARGO")
-                return 0, 0
+                raise StateChanged("RECV_WAIT")
 
             if not nrf.data_ready(): continue
             
@@ -235,44 +261,59 @@ def choose_occupied_channel(nrf: NRF24, other_channels: list[int], channel_idx) 
 
 
 # :::: FLOW FUNCTIONS :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-def ACT_AS_TX(nrf: NRF24, content: bytes, own_channels: list[int]) -> None:
+def ACT_AS_TX(nrf: NRF24, content2: bytes, own_channels: list[int]) -> None:
     INFO("SOY UN TRANSMISOR PUTA")
     channel = choose_free_channel(nrf, own_channels)
     nrf.set_channel(channel)
 
-    if cfg.STATE != cfg.STATE_SEND_ACTIVE:
-        return -1
+    #if cfg.STATE != cfg.STATE_SEND_ACTIVE:
+     #   return -1
 
-
-    if (len(content)>1000):
-        length = 1000
+    if (len(content2)>CUT_LENGTH):
+        length = CUT_LENGTH
     else:
-        length = len(content)
+        length = len(content2)
     
-    content = content[0:int(length)]
+    content2 = content2[0:int(length)]
+
+    INFO(f"LEN CONTENT NO COMPRESSION: {len(content2)}")
+
+    content = compress_zstd(content2, ZSTD_LEVEL)
+
+    INFO(f"LEN CONTENT COMPRESSION: {len(content)}")
+
     # split the bytes into frames with a FrameID
     frames = [
-        FrameID.to_bytes(1) + content[i : i + BYTES_IN_FRAME]
+        FrameID.to_bytes(2) + content[i : i + BYTES_IN_FRAME]
         for FrameID, i in enumerate(range(0, len(content), BYTES_IN_FRAME))
     ]
 
+    #max_data = min(2^(8*LENGTH_BYTES), 2^(8*(FRAME_ID_BYTES-1))*31)
+
     control_message  = bytes()
-    control_message += 0xFF.to_bytes(1)              # Header reserved to control messages
-    control_message += shake_256(content).digest(29) # Checksum of the file
-    control_message += len(content).to_bytes(2)      # Ammount of data to transmit
+    control_message += 0xFFFF.to_bytes(2)              # Header reserved to control messages
+    control_message += shake_256(content).digest(27) # Checksum of the file
+    control_message += len(content).to_bytes(3)      # Ammount of data to transmit
+    INFO(f"DATA LEN: {len(content)}")
+    INFO(f"CHECKSUM: {shake_256(content).digest(27)}")
 
     cycle = []
     cycle.append(control_message)
     cycle.extend(frames)
 
-    INFO(f"Cycle: {cycle}")
+    #INFO(f"Cycle: {cycle}")
 
     cycle_len = len(cycle)
+    INFO(f"Cycle_len")
 
     idx = 0
 
     tic = time.time()
     while True:
+
+        if cfg.STATE != cfg.STATE_SEND_ACTIVE:
+            raise StateChanged("SEND_ACTIVE")
+
         message = cycle[idx % cycle_len]
         nrf.send(message)
         idx += 1
@@ -283,8 +324,6 @@ def ACT_AS_TX(nrf: NRF24, content: bytes, own_channels: list[int]) -> None:
             nrf.set_channel(channel)
             tic = time.time()
 
-        if cfg.STATE != cfg.STATE_SEND_ACTIVE:
-            break
     return
 
 def ACT_AS_RX(nrf: NRF24, other_channels: list[int]) -> bytes:
@@ -307,8 +346,7 @@ def ACT_AS_RX(nrf: NRF24, other_channels: list[int]) -> bytes:
     while not file_received:
 
         if cfg.STATE != cfg.STATE_RECV_WAIT and cfg.STATE != cfg.STATE_RECV_ACTIVE:
-            INFO("APA ADEU MACO QUE VAIG BE MEN VAII")
-            return
+            raise StateChanged("RECV_WAIT")
 
         if not nrf.data_ready():
             tac = time.time()
@@ -317,19 +355,24 @@ def ACT_AS_RX(nrf: NRF24, other_channels: list[int]) -> bytes:
                 channel, channel_idx = choose_occupied_channel(nrf, other_channels, channel_idx+1)
 
                 if cfg.STATE != cfg.STATE_RECV_WAIT:
-                    return
+                    raise StateChanged("RECV_WAIT")
 
                 nrf.set_channel(channel)
             continue
 
         frame: bytes = nrf.get_payload()
+        frame_id = int.from_bytes(frame[0:2])
+        INFO(f"FRAME ID: {frame_id}")
 
-        if frame[0] == 0xFF:
+        if frame_id == 0xFFFF:
+            raise Exception
             _        = frame[0]
-            checksum = frame[1:30]
-            data_len = int.from_bytes(frame[30:32])
+            checksum = frame[2:29]
+            data_len = int.from_bytes(frame[29:32])
+            INFO(f"DATA LEN: {data_len}")
 
             num_of_frames = ceil(data_len / BYTES_IN_FRAME)
+            INFO(f"NUM FRAMES:{num_of_frames}")
 
             if slot_not_generated:
                 slots = [
@@ -345,18 +388,20 @@ def ACT_AS_RX(nrf: NRF24, other_channels: list[int]) -> bytes:
 
 
 
-        if is_reading_frames and (frame[0] < 0xFF):
-            FrameID        = frame[0]
-            slots[FrameID] = frame[1:]
+        if is_reading_frames and (frame_id < 0xFFFF):
+            slots[frame_id] = frame[2:]
 
 
 
-        if is_reading_frames and (frame[0] == num_of_frames - 1):
+        if is_reading_frames and (frame_id == num_of_frames - 1):
             computed_checksum = shake_256(b"".join(slots)).digest(29)
+            INFO(f"CHECKSUM: {computed_checksum}")
 
             if computed_checksum == checksum:
                 SUCC("EL CHESUM TA TO BIEN PRIMIKO")
-                return b"".join(slots)
+                compressed_file = b"".join(slots)
+                decompressed_file = decompress_zstd(compressed_file)
+                return decompressed_file
 
             else:
                 WARN("EL CHESUM TA MAL LOKO")
@@ -366,8 +411,8 @@ def ACT_AS_RX(nrf: NRF24, other_channels: list[int]) -> bytes:
                     cfg.set_state(cfg.STATE_RECV_WAIT)
                     INFO("VOY A PROBAR A CAMBIAR DE CANAL PORK ESTE VA TO MAL")
 
-                    if cfg.state != cfg.STATE_RECV_WAIT:
-                        return
+                    #if cfg.state != cfg.STATE_RECV_WAIT:
+                        #return
 
                     channel, channel_idx = choose_occupied_channel(nrf, other_channels, channel_idx+1)
 
@@ -390,7 +435,7 @@ def save_file_usb(content: bytes) -> None:
             cfg.set_state(cfg.STATE_RECV_USB_DONE)
 
         if cfg.STATE != cfg.STATE_RECV_WAIT_USB:
-            return
+            raise StateChanged("RECV_WAIT_USB")
     return
 # :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
@@ -403,80 +448,83 @@ def main(is_tx=0, is_standalone=0):
     """
     Main flow of the application
     """
-    if is_standalone:
-        parser = argparse.ArgumentParser(description="NRF24 Pretest")
-        parser.add_argument(
-            "--tx",
-            action="store_true",      # Si se pone la flag vale True, si no False
-            help="Declara el nodo como transmisor",
-        )
-        args = parser.parse_args()
+    try:
+        if is_standalone:
+            parser = argparse.ArgumentParser(description="NRF24 Pretest")
+            parser.add_argument(
+                "--tx",
+                action="store_true",      # Si se pone la flag vale True, si no False
+                help="Declara el nodo como transmisor",
+            )
+            args = parser.parse_args()
 
-        is_tx = args.tx
+            is_tx = args.tx
 
-    nrf            = create_radio_object(CE_PIN) 
-    cfg.set_state(cfg.STATE_IDLE)
-    usb_mount_path = get_usb_mount_path()
-    file_path      = find_valid_txt_file_in_usb(usb_mount_path)
-
-    all_channels   = [channel for channel in range(0, 50 + 1, 5)]
-
-    own_channels = all_channels
-
-    other_channels = all_channels
-
-    INFO(f"ALL CHANNELS: {all_channels}")
-
-    content        = None
-
-    if is_tx:
-        last_msg = None
-        msg = None
-        INFO("ESTE NODO HA SIDO ESCOGIDO COMO TX")
-        cfg.set_state(cfg.STATE_SEND_WAIT)
-
-        while not file_path:
-            if not usb_mount_path:
-                msg = "ESPERANDO A QUE SE INTRODUZCA UN USB..."
-            else:
-                msg = "NO SE ENCUENTRA NINGUN ARCHIVO EN EL USB"
-
-            if msg is not None and msg != last_msg:
-                INFO(msg)
-                last_msg = msg
-            
-            usb_mount_path = get_usb_mount_path()
-            file_path      = find_valid_txt_file_in_usb(usb_mount_path)
-
-            if cfg.STATE != cfg.STATE_SEND_WAIT:
-                nrf.power_down()
-                return
-
-        INFO("HAY UN USB CON UN ARCHIVO DENTRO")
-        INFO(f"SE HA ENCONTRADO EL SIGUIENTE ARCHIVO:{file_path}")
-        content = file_path.read_bytes()
-        cfg.set_state(cfg.STATE_SEND_ACTIVE)
-        ACT_AS_TX(nrf, content, own_channels)
-
-    else:
-        INFO("NO HE SIDO ESCOGIDO COMO TX :((")
-        content = ACT_AS_RX(nrf, other_channels)
+        nrf            = create_radio_object(CE_PIN) 
+        cfg.set_state(cfg.STATE_IDLE)
         usb_mount_path = get_usb_mount_path()
-        if usb_mount_path:
-            INFO("SE HA ENCONTRADO UN USB PA GUARDAR LAS COSAS ERMANIKO") 
-            (usb_mount_path / "file_received.txt").write_bytes(content)
-            SUCC("ARCHIVO GUARDADO EN EL USB")
-            cfg.set_state(cfg.STATE_RECV_USB_DONE)
-        else:
-            INFO("NO SA ENCONTRAO EL USB PA GUARDAR, LO GUARDO POR AHI")
-            Path("file_received.txt").write_bytes(content)
-            INFO("BUSCANDO UN USB PARA GUARDAR EL ARCHIVO...")
-            cfg.set_state(cfg.STATE_RECV_WAIT_USB)
-            save_file_usb(content)
+        file_path      = find_valid_txt_file_in_usb(usb_mount_path)
 
-    nrf.power_down()
-    
-    return
+        all_channels   = [channel for channel in range(0, 50 + 1, 5)]
+
+        own_channels = all_channels
+
+        other_channels = all_channels
+
+        INFO(f"ALL CHANNELS: {all_channels}")
+
+        content        = None
+
+        if is_tx:
+            last_msg = None
+            msg = None
+            INFO("ESTE NODO HA SIDO ESCOGIDO COMO TX")
+            cfg.set_state(cfg.STATE_SEND_WAIT)
+
+            while not file_path:
+                if not usb_mount_path:
+                    msg = "ESPERANDO A QUE SE INTRODUZCA UN USB..."
+                else:
+                    msg = "NO SE ENCUENTRA NINGUN ARCHIVO EN EL USB"
+
+                if msg is not None and msg != last_msg:
+                    INFO(msg)
+                    last_msg = msg
+                
+                usb_mount_path = get_usb_mount_path()
+                file_path      = find_valid_txt_file_in_usb(usb_mount_path)
+
+                if cfg.STATE != cfg.STATE_SEND_WAIT:
+                    raise StateChanged("SEND_WAIT")
+
+            INFO("HAY UN USB CON UN ARCHIVO DENTRO")
+            INFO(f"SE HA ENCONTRADO EL SIGUIENTE ARCHIVO:{file_path}")
+            content = file_path.read_bytes()
+            cfg.set_state(cfg.STATE_SEND_ACTIVE)
+            ACT_AS_TX(nrf, content, own_channels)
+
+        else:
+            INFO("NO HE SIDO ESCOGIDO COMO TX :((")
+            content = ACT_AS_RX(nrf, other_channels)
+            usb_mount_path = get_usb_mount_path()
+            if usb_mount_path:
+                INFO("SE HA ENCONTRADO UN USB PA GUARDAR LAS COSAS ERMANIKO") 
+                (usb_mount_path / "file_received.txt").write_bytes(content)
+                SUCC("ARCHIVO GUARDADO EN EL USB")
+                cfg.set_state(cfg.STATE_RECV_USB_DONE)
+            else:
+                INFO("NO SA ENCONTRAO EL USB PA GUARDAR, LO GUARDO POR AHI")
+                Path("file_received.txt").write_bytes(content)
+                INFO("BUSCANDO UN USB PARA GUARDAR EL ARCHIVO...")
+                cfg.set_state(cfg.STATE_RECV_WAIT_USB)
+                save_file_usb(content)
+
+        nrf.power_down()
+        
+        return
+    except StateChanged as e:
+        nrf.power_down()
+        WARN(f"STATE {e} INTERRUMPTED")
 # :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 
