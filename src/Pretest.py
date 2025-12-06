@@ -37,12 +37,12 @@ os.system("clear")
 # :::: CONSTANTS/GLOBALS ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 CE_PIN                      = 25
 RECEIVER_TIMEOUT_S          = 20
-BYTES_IN_FRAME              = 31
+BYTES_IN_FRAME              = 30
 channel_read_timeout        = 1
 PERSEVERANCE                = 1000
 channel_permanence_timeout  = 10
 channel_tx_timeout          = 120
-CUT_LENGTH                  = 300000
+CUT_LENGTH                  = 1000000
 ZSTD_LEVEL                  = 3
 
 # :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
@@ -292,10 +292,10 @@ def ACT_AS_TX(nrf: NRF24, content2: bytes, own_channels: list[int]) -> None:
 
     control_message  = bytes()
     control_message += 0xFFFF.to_bytes(2)              # Header reserved to control messages
-    control_message += shake_256(content).digest(27) # Checksum of the file
-    control_message += len(content).to_bytes(3)      # Ammount of data to transmit
+    control_message += shake_256(content).digest(28) # Checksum of the file
+    control_message += len(content).to_bytes(2)      # Ammount of data to transmit
     INFO(f"DATA LEN: {len(content)}")
-    INFO(f"CHECKSUM: {shake_256(content).digest(27)}")
+    INFO(f"CHECKSUM: {shake_256(content).digest(28)}")
 
     cycle = []
     cycle.append(control_message)
@@ -304,7 +304,7 @@ def ACT_AS_TX(nrf: NRF24, content2: bytes, own_channels: list[int]) -> None:
     #INFO(f"Cycle: {cycle}")
 
     cycle_len = len(cycle)
-    INFO(f"Cycle_len")
+    INFO(f"Cycle_len {cycle_len}")
 
     idx = 0
 
@@ -315,6 +315,8 @@ def ACT_AS_TX(nrf: NRF24, content2: bytes, own_channels: list[int]) -> None:
             raise StateChanged("SEND_ACTIVE")
 
         message = cycle[idx % cycle_len]
+        #INFO(f"Frame: {message}")
+        #INFO(f"FrameID {int.from_bytes(message[0:2])}")
         nrf.send(message)
         idx += 1
         tac = time.time()
@@ -361,18 +363,19 @@ def ACT_AS_RX(nrf: NRF24, other_channels: list[int]) -> bytes:
             continue
 
         frame: bytes = nrf.get_payload()
+        #INFO(f"FRAME_ {frame}")
         frame_id = int.from_bytes(frame[0:2])
-        INFO(f"FRAME ID: {frame_id}")
+        #INFO(f"FRAME ID: {frame_id}")
 
         if frame_id == 0xFFFF:
-            raise Exception
+            #INFO(f"FRAME ID: {frame_id}")
             _        = frame[0]
-            checksum = frame[2:29]
-            data_len = int.from_bytes(frame[29:32])
-            INFO(f"DATA LEN: {data_len}")
+            checksum = frame[2:30]
+            data_len = int.from_bytes(frame[30:32])
+            #INFO(f"DATA LEN: {data_len}")
 
             num_of_frames = ceil(data_len / BYTES_IN_FRAME)
-            INFO(f"NUM FRAMES:{num_of_frames}")
+            #INFO(f"NUM FRAMES:{num_of_frames}")
 
             if slot_not_generated:
                 slots = [
@@ -388,13 +391,13 @@ def ACT_AS_RX(nrf: NRF24, other_channels: list[int]) -> bytes:
 
 
 
-        if is_reading_frames and (frame_id < 0xFFFF):
+        if is_reading_frames and (frame_id <= num_of_frames - 1):
             slots[frame_id] = frame[2:]
 
 
 
         if is_reading_frames and (frame_id == num_of_frames - 1):
-            computed_checksum = shake_256(b"".join(slots)).digest(29)
+            computed_checksum = shake_256(b"".join(slots)).digest(28)
             INFO(f"CHECKSUM: {computed_checksum}")
 
             if computed_checksum == checksum:
