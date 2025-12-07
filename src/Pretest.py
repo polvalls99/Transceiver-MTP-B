@@ -234,7 +234,7 @@ def choose_free_channel(nrf: NRF24, own_channels: list[int]) -> int:
             
 def choose_occupied_channel(nrf: NRF24, other_channels: list[int], channel_idx) -> tuple[int, int]:
     nrf.power_up_rx()
-
+    cfg.set_state(cfg.STATE_RECV_WAIT)
     #channel_idx = 0
     INFO("CALLARSE QUE ESTOY ESCUCHANDO CANALES")
     while True:
@@ -330,25 +330,21 @@ def ACT_AS_TX(nrf: NRF24, content2: bytes, own_channels: list[int]) -> None:
 
 def ACT_AS_RX(nrf: NRF24, other_channels: list[int]) -> bytes:
     INFO("SOY UN RECEPTOR")
-    cfg.set_state(cfg.STATE_RECV_WAIT)
     channel, channel_idx = choose_occupied_channel(nrf, other_channels, 0)
     nrf.set_channel(channel)
+
+    cfg.set_state(cfg.STATE_RECV_ACTIVE)
 
     checksum           = None
     is_reading_frames  = False
     slot_not_generated = True
     slots              = []
 
-    file_received = False
-
     tries = 0
 
     tic = time.time()
     
-    while not file_received:
-
-        if cfg.STATE != cfg.STATE_RECV_WAIT and cfg.STATE != cfg.STATE_RECV_ACTIVE:
-            raise StateChanged("RECV_WAIT")
+    while True:
 
         if not nrf.data_ready():
             tac = time.time()
@@ -364,6 +360,7 @@ def ACT_AS_RX(nrf: NRF24, other_channels: list[int]) -> bytes:
 
         frame: bytes = nrf.get_payload()
         #INFO(f"FRAME_ {frame}")
+
         frame_id = int.from_bytes(frame[0:2])
         #INFO(f"FRAME ID: {frame_id}")
 
@@ -386,8 +383,6 @@ def ACT_AS_RX(nrf: NRF24, other_channels: list[int]) -> bytes:
                 slot_not_generated = False
 
             is_reading_frames = True
-
-            cfg.set_state(cfg.STATE_RECV_ACTIVE)
 
 
 
