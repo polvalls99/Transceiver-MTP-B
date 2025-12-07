@@ -38,12 +38,13 @@ os.system("clear")
 CE_PIN                      = 25
 RECEIVER_TIMEOUT_S          = 20
 BYTES_IN_FRAME              = 30
-channel_read_timeout        = 1
+channel_read_timeout        = 2
 PERSEVERANCE                = 1000
-channel_permanence_timeout  = 10
+channel_permanence_timeout  = 30
 channel_tx_timeout          = 120
-CUT_LENGTH                  = 1000000
+CUT_LENGTH                  = 2000000
 ZSTD_LEVEL                  = 3
+LZMA_LEVEL                  = 6
 
 # :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
@@ -156,6 +157,21 @@ def decompress_zstd(data) -> bytes:
         raise RuntimeError("The “zstandard” library is not installed. Install it with: pip3 install zstandard") from e
     dctx = zstd.ZstdDecompressor()
     return dctx.decompress(data)
+
+def compress_lzma(data, preset=6) -> bytes:
+    try:
+        import lzma
+    except Exception as e:
+        raise RuntimeError("The “zstandard” library is not installed. Install it with: pip3 install zstandard") from e
+    return lzma.compress(data, preset=preset)
+
+def decompress_lzma(data) -> bytes:
+    try:
+        import lzma
+    except Exception as e:
+        raise RuntimeError("The “zstandard” library is not installed. Install it with: pip3 install zstandard") from e
+    return lzma.decompress(data)
+
 # :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 # :::: USB IO :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
@@ -251,7 +267,6 @@ def choose_occupied_channel(nrf: NRF24, other_channels: list[int], channel_idx) 
                 raise StateChanged("RECV_WAIT")
 
             if not nrf.data_ready(): continue
-            
             INFO(f"POS ESCUCHO EN EL CANAL {channel}")
             return channel, channel_idx
 
@@ -278,7 +293,8 @@ def ACT_AS_TX(nrf: NRF24, content2: bytes, own_channels: list[int]) -> None:
 
     INFO(f"LEN CONTENT NO COMPRESSION: {len(content2)}")
 
-    content = compress_zstd(content2, ZSTD_LEVEL)
+    #content = compress_zstd(content2, ZSTD_LEVEL)
+    content = compress_lzma(content2, LZMA_LEVEL)
 
     INFO(f"LEN CONTENT COMPRESSION: {len(content)}")
 
@@ -295,7 +311,7 @@ def ACT_AS_TX(nrf: NRF24, content2: bytes, own_channels: list[int]) -> None:
     control_message += shake_256(content).digest(28) # Checksum of the file
     control_message += len(content).to_bytes(2)      # Ammount of data to transmit
     INFO(f"DATA LEN: {len(content)}")
-    INFO(f"CHECKSUM: {shake_256(content).digest(28)}")
+    #INFO(f"CHECKSUM: {shake_256(content).digest(28)}")
 
     cycle = []
     cycle.append(control_message)
@@ -339,6 +355,8 @@ def ACT_AS_RX(nrf: NRF24, other_channels: list[int]) -> bytes:
     is_reading_frames  = False
     slot_not_generated = True
     slots              = []
+    received_count = 0
+
 
     tries = 0
 
@@ -379,6 +397,8 @@ def ACT_AS_RX(nrf: NRF24, other_channels: list[int]) -> bytes:
                     for _ in range(num_of_frames)
                 ]
 
+                received =  [False] * num_of_frames
+
                 slot_not_generated = False
 
             is_reading_frames = True
@@ -387,24 +407,29 @@ def ACT_AS_RX(nrf: NRF24, other_channels: list[int]) -> bytes:
 
         if is_reading_frames and (frame_id <= num_of_frames - 1):
             slots[frame_id] = frame[2:]
+            if not received[frame_id]:
+                received_count += 1
+                received[frame_id] = True
 
 
-
-        if is_reading_frames and (frame_id == num_of_frames - 1):
+        #if is_reading_frames and (frame_id == num_of_frames - 1):
+        if is_reading_frames and ((received_count == num_of_frames) or (frame_id == num_of_frames - 1)):
             computed_checksum = shake_256(b"".join(slots)).digest(28)
-            INFO(f"CHECKSUM: {computed_checksum}")
+            #INFO(f"CHECKSUM: {computed_checksum}")
 
             if computed_checksum == checksum:
                 SUCC("EL CHESUM TA TO BIEN PRIMIKO")
                 compressed_file = b"".join(slots)
-                decompressed_file = decompress_zstd(compressed_file)
+                #decompressed_file = decompress_zstd(compressed_file)
+                decompressed_file = decompress_lzma(compressed_file)
                 if cfg.STATE != cfg.STATE_RECV_ACTIVE:
                     raise StateChanged("RECV_ACTIVE")
                 return decompressed_file
 
             else:
                 WARN("EL CHESUM TA MAL LOKO")
-                
+                received_count = 0
+                received =  [False] * num_of_frames
                 tries += 1
                 if tries >= PERSEVERANCE:
                     cfg.set_state(cfg.STATE_RECV_WAIT)
@@ -464,7 +489,7 @@ def main(is_tx=0, is_standalone=0):
         usb_mount_path = get_usb_mount_path()
         file_path      = find_valid_txt_file_in_usb(usb_mount_path)
 
-        all_channels   = [channel for channel in range(0, 50 + 1, 5)]
+        all_channels   = [channel for channel in range(0, 30 + 1, 5)]
 
         own_channels = all_channels
 
