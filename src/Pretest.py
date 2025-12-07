@@ -346,15 +346,14 @@ def ACT_AS_RX(nrf: NRF24, other_channels: list[int]) -> bytes:
     
     while True:
 
+        if cfg.STATE != cfg.STATE_RECV_ACTIVE:
+            raise StateChanged("RECV_ACTIVE")
+
         if not nrf.data_ready():
             tac = time.time()
             if (tac- tic) > channel_permanence_timeout:
                 INFO("VOY A PROBAR A CAMBIAR DE CANAL PORK ESTE VA TO MAL")
                 channel, channel_idx = choose_occupied_channel(nrf, other_channels, channel_idx+1)
-
-                if cfg.STATE != cfg.STATE_RECV_WAIT:
-                    raise StateChanged("RECV_WAIT")
-
                 nrf.set_channel(channel)
             continue
 
@@ -399,6 +398,8 @@ def ACT_AS_RX(nrf: NRF24, other_channels: list[int]) -> bytes:
                 SUCC("EL CHESUM TA TO BIEN PRIMIKO")
                 compressed_file = b"".join(slots)
                 decompressed_file = decompress_zstd(compressed_file)
+                if cfg.STATE != cfg.STATE_RECV_ACTIVE:
+                    raise StateChanged("RECV_ACTIVE")
                 return decompressed_file
 
             else:
@@ -516,6 +517,7 @@ def main(is_tx=0, is_standalone=0):
                 INFO("BUSCANDO UN USB PARA GUARDAR EL ARCHIVO...")
                 cfg.set_state(cfg.STATE_RECV_WAIT_USB)
                 save_file_usb(content)
+                cfg.set_state(cfg.STATE_RECV_USB_DONE)
 
         nrf.power_down()
         
