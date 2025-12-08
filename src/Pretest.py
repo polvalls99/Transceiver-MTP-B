@@ -42,7 +42,7 @@ RECEIVER_TIMEOUT_S          = 20
 BYTES_IN_FRAME              = 30
 channel_read_timeout        = 2
 PERSEVERANCE                = 1000
-channel_permanence_timeout  = 30
+channel_permanence_timeout  = 60
 channel_tx_timeout          = 120
 CUT_LENGTH                  = 2000000
 ZSTD_LEVEL                  = 3
@@ -160,6 +160,19 @@ def decompress_zstd(data) -> bytes:
     dctx = zstd.ZstdDecompressor()
     return dctx.decompress(data)
 
+def compress_lzma(data, preset=6) -> bytes:
+    try:
+        import lzma
+    except Exception as e:
+        raise RuntimeError("The “zstandard” library is not installed. Install it with: pip3 install zstandard") from e
+    return lzma.compress(data, preset=preset)
+
+def decompress_lzma(data) -> bytes:
+    try:
+        import lzma
+    except Exception as e:
+        raise RuntimeError("The “zstandard” library is not installed. Install it with: pip3 install zstandard") from e
+    return lzma.decompress(data)
 # :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 # :::: USB IO :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
@@ -282,7 +295,7 @@ def ACT_AS_TX(nrf: NRF24, content2: bytes, own_channels: list[int]) -> None:
     INFO(f"LEN CONTENT NO COMPRESSION: {len(content2)}")
 
     #content = compress_zstd(content2, ZSTD_LEVEL)
-    content = lzma.compress(content2, LZMA_LEVEL)
+    content = compress_lzma(content2, LZMA_LEVEL)
 
     INFO(f"LEN CONTENT COMPRESSION: {len(content)}")
 
@@ -409,7 +422,7 @@ def ACT_AS_RX(nrf: NRF24, other_channels: list[int]) -> bytes:
                 SUCC("EL CHESUM TA TO BIEN PRIMIKO")
                 compressed_file = b"".join(slots)
                 #decompressed_file = decompress_zstd(compressed_file)
-                decompressed_file = lzma.decompress(compressed_file)
+                decompressed_file = decompress_lzma(compressed_file)
                 if cfg.STATE != cfg.STATE_RECV_ACTIVE:
                     raise StateChanged("RECV_ACTIVE")
                 return decompressed_file
