@@ -47,7 +47,7 @@ channel_tx_timeout          = 120e20
 CUT_LENGTH                  = 2000000
 ZSTD_LEVEL                  = 3
 LZMA_LEVEL                  = 6
-N_RETRANSMISSIONS           = 1
+N_RETRANSMISSIONS           = 8
 TIME_RETRANSMISSIONS        = 1
 
 # :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
@@ -131,7 +131,7 @@ def create_radio_object(CE_PIN) -> NRF24:
         payload_size  = RF24_PAYLOAD.DYNAMIC,
         address_bytes = 4,
         crc_bytes     = RF24_CRC.BYTES_2,
-        pa_level      = RF24_PA.HIGH,
+        pa_level      = RF24_PA.MAX,
     )
 
     address = b"ABCD"
