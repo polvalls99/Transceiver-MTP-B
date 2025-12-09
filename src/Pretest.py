@@ -42,11 +42,13 @@ RECEIVER_TIMEOUT_S          = 20
 BYTES_IN_FRAME              = 30
 channel_read_timeout        = 2
 PERSEVERANCE                = 1000
-channel_permanence_timeout  = 60
-channel_tx_timeout          = 120
+channel_permanence_timeout  = 6e20
+channel_tx_timeout          = 120e20
 CUT_LENGTH                  = 2000000
 ZSTD_LEVEL                  = 3
 LZMA_LEVEL                  = 6
+N_RETRANSMISSIONS           = 1
+TIME_RETRANSMISSIONS        = 1
 
 # :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
@@ -102,11 +104,12 @@ def choose_node_role() -> Role:
             return Role.RECEIVER
 
 def disable_auto_ack(nrf: NRF24):
-    nrf.unset_ce()
-    nrf._nrf_write_reg(nrf.EN_AA, 0x00)   # <<< disable auto-ack for all pipes
-    nrf.set_ce()
+    #nrf.unset_ce()
+    #nrf._nrf_write_reg(nrf.EN_AA, 0x00)   # <<< disable auto-ack for all pipes
+    #nrf.set_ce()
 
-    nrf.set_retransmission(0, 0)  # <<< disable auto-retransmissions (x+1) * 250 µs
+    #nrf.set_retransmission(0, 0)  # <<< disable auto-retransmissions (x+1) * 250 µs
+    return
 
 def create_radio_object(CE_PIN) -> NRF24:
     # pigpio
@@ -136,6 +139,7 @@ def create_radio_object(CE_PIN) -> NRF24:
     nrf.open_reading_pipe(RF24_RX_ADDR.P1, address)
 
     disable_auto_ack(nrf)
+    nrf.set_retransmission(N_RETRANSMISSIONS, TIME_RETRANSMISSIONS)
     
     INFO(f"Radio details:")
     nrf.show_registers()
@@ -161,17 +165,9 @@ def decompress_zstd(data) -> bytes:
     return dctx.decompress(data)
 
 def compress_lzma(data, preset=6) -> bytes:
-    try:
-        import lzma
-    except Exception as e:
-        raise RuntimeError("The “zstandard” library is not installed. Install it with: pip3 install zstandard") from e
     return lzma.compress(data, preset=preset)
 
 def decompress_lzma(data) -> bytes:
-    try:
-        import lzma
-    except Exception as e:
-        raise RuntimeError("The “zstandard” library is not installed. Install it with: pip3 install zstandard") from e
     return lzma.decompress(data)
 # :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
@@ -202,7 +198,7 @@ def find_valid_txt_file_in_usb(usb_mount_path: Path) -> Path | None:
         for file in usb_mount_path.iterdir()
         if file.is_file()
         and file.suffix == ".txt"
-        and not str(file).startswith(".")
+        and not file.name.startswith(".")
     ]
 
     file = sorted(file)
@@ -269,6 +265,7 @@ def choose_occupied_channel(nrf: NRF24, other_channels: list[int], channel_idx) 
 
             if not nrf.data_ready(): continue
             INFO(f"POS ESCUCHO EN EL CANAL {channel}")
+            cfg.set_state(cfg.STATE_RECV_ACTIVE)
             return channel, channel_idx
 
 
@@ -350,8 +347,6 @@ def ACT_AS_RX(nrf: NRF24, other_channels: list[int]) -> bytes:
     channel, channel_idx = choose_occupied_channel(nrf, other_channels, 0)
     nrf.set_channel(channel)
 
-    cfg.set_state(cfg.STATE_RECV_ACTIVE)
-
     checksum           = None
     is_reading_frames  = False
     slot_not_generated = True
@@ -423,8 +418,7 @@ def ACT_AS_RX(nrf: NRF24, other_channels: list[int]) -> bytes:
                 compressed_file = b"".join(slots)
                 #decompressed_file = decompress_zstd(compressed_file)
                 decompressed_file = decompress_lzma(compressed_file)
-                if cfg.STATE != cfg.STATE_RECV_ACTIVE:
-                    raise StateChanged("RECV_ACTIVE")
+
                 return decompressed_file
 
             else:
@@ -433,11 +427,10 @@ def ACT_AS_RX(nrf: NRF24, other_channels: list[int]) -> bytes:
                 received =  [False] * num_of_frames
                 tries += 1
                 if tries >= PERSEVERANCE:
-                    cfg.set_state(cfg.STATE_RECV_WAIT)
                     INFO("VOY A PROBAR A CAMBIAR DE CANAL PORK ESTE VA TO MAL")
 
-                    #if cfg.state != cfg.STATE_RECV_WAIT:
-                        #return
+                    if cfg.state != cfg.STATE_RECV_ACTIVE:
+                        raise StateChanged("RECV_ACTIVE")
 
                     channel, channel_idx = choose_occupied_channel(nrf, other_channels, channel_idx+1)
 
@@ -457,7 +450,6 @@ def save_file_usb(content: bytes) -> None:
             (usb_mount_path / "file_received.txt").write_bytes(content)
             file_saved = True
             SUCC("ARCHIVO GUARDADO EN EL USB")
-            cfg.set_state(cfg.STATE_RECV_USB_DONE)
 
         if cfg.STATE != cfg.STATE_RECV_WAIT_USB:
             raise StateChanged("RECV_WAIT_USB")
@@ -532,6 +524,8 @@ def main(is_tx=0, is_standalone=0):
             INFO("NO HE SIDO ESCOGIDO COMO TX :((")
             content = ACT_AS_RX(nrf, other_channels)
             usb_mount_path = get_usb_mount_path()
+            if cfg.STATE != cfg.STATE_RECV_ACTIVE:
+                raise StateChanged("RECV_ACTIVE")
             if usb_mount_path:
                 INFO("SE HA ENCONTRADO UN USB PA GUARDAR LAS COSAS ERMANIKO") 
                 (usb_mount_path / "file_received.txt").write_bytes(content)
