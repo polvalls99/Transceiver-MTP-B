@@ -49,6 +49,9 @@ ZSTD_LEVEL                  = 3
 LZMA_LEVEL                  = 6
 N_RETRANSMISSIONS           = 8
 TIME_RETRANSMISSIONS        = 1
+LR_N_RETRANSMISSIONS        = 8
+LR_TIME_RETRANSMISSIONS     = 1
+pi = 0 # pigpiod handler
 
 # :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
@@ -111,10 +114,12 @@ def disable_auto_ack(nrf: NRF24):
     #nrf.set_retransmission(0, 0)  # <<< disable auto-retransmissions (x+1) * 250 µs
     return
 
-def create_radio_object(CE_PIN) -> NRF24:
+def create_radio_object(CE_PIN, is_long_range) -> NRF24:
     # pigpio
     hostname = "localhost"
     port     = 8888
+
+    global pi
 
     pi = pigpio.pi(hostname, port)
     if not pi.connected:
@@ -139,7 +144,10 @@ def create_radio_object(CE_PIN) -> NRF24:
     nrf.open_reading_pipe(RF24_RX_ADDR.P1, address)
 
     disable_auto_ack(nrf)
-    nrf.set_retransmission(N_RETRANSMISSIONS, TIME_RETRANSMISSIONS)
+    if is_long_range:
+        nrf.set_retransmission(LR_N_RETRANSMISSIONS, LR_TIME_RETRANSMISSIONS)
+    else:
+        nrf.set_retransmission(N_RETRANSMISSIONS, TIME_RETRANSMISSIONS)
     
     INFO(f"Radio details:")
     nrf.show_registers()
@@ -461,10 +469,12 @@ def save_file_usb(content: bytes) -> None:
 
 
 # :::: MAIN :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-def main(is_tx=0, is_standalone=0):
+def main(is_tx=0, is_standalone=0, is_long_range=0):
     """
     Main flow of the application
     """
+    global pi
+
     try:
         if is_standalone:
             parser = argparse.ArgumentParser(description="NRF24 Pretest")
@@ -477,7 +487,7 @@ def main(is_tx=0, is_standalone=0):
 
             is_tx = args.tx
 
-        nrf            = create_radio_object(CE_PIN) 
+        nrf            = create_radio_object(CE_PIN, is_long_range)
         cfg.set_state(cfg.STATE_IDLE)
         usb_mount_path = get_usb_mount_path()
         file_path      = find_valid_txt_file_in_usb(usb_mount_path)
@@ -544,6 +554,7 @@ def main(is_tx=0, is_standalone=0):
         return
     except StateChanged as e:
         nrf.power_down()
+        pi.stop()
         WARN(f"STATE {e} INTERRUMPTED")
 # :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 

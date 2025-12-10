@@ -1,8 +1,10 @@
 # Initialize the global mode variable. Default it to None or a sensible default.
 MODE_IDLE = 0
 MODE_RECEIVER = 1
-MODE_SENDER = 2
-MODE_NETWORK = 3
+MODE_RECEIVER_FAST = 2
+MODE_SENDER = 3
+MODE_SENDER_FAST = 4
+MODE_NETWORK = 5
 
 # State to indicate to the 7 segment display cuz i'm too lazy to write an enum
 STATE_IDLE             = 0
@@ -15,16 +17,17 @@ STATE_SEND_ACTIVE      = 6
 STATE_NETW_WAIT        = 7
 STATE_NETW_RECV_ACTIVE = 8
 STATE_NETW_SEND_ACTIVE = 9
+STATE_KILL_THREAD      = 99
 
 # GPIO pins
-IN_GPIO_SWITCH_SP_0     = 19 #5
-IN_GPIO_SWITCH_RECV     = 4  #7
-IN_GPIO_SWITCH_SEND     = 5 #26
-IN_GPIO_SWITCH_NETW     = 26 #19
+IN_GPIO_SWITCH_SP_0     = 19
+IN_GPIO_SWITCH_RECV     = 4
+IN_GPIO_SWITCH_SEND     = 5
+IN_GPIO_SWITCH_NETW     = 26
 #OUT_GPIO_LED_PWR_ON     = 18
-OUT_GPIO_LED_RX_ONGOING = 12 # Green
-OUT_GPIO_LED_BOOT_UP    = 20 # Yellow
-OUT_GPIO_LED_TX_ONGOING = 16 # White
+OUT_GPIO_LED_GREEN  = 12 # Green
+OUT_GPIO_LED_YELLOW = 20 # Yellow
+OUT_GPIO_LED_WHITE  = 16 # White
 OUT_GPIO_7SEG = [23, 18, 15, 14] # index 0 is seg a, index 6 is segment g
 
 # Global mode variable. DO NOT CHANGE MANUALLY, use always the hanlder function
@@ -43,7 +46,7 @@ def set_mode(mode):
     This is the ONLY function that should write to APP_MODE.
     """
     global APP_MODE
-    valid_modes = [MODE_IDLE, MODE_RECEIVER, MODE_SENDER, MODE_NETWORK]
+    valid_modes = [MODE_IDLE, MODE_RECEIVER, MODE_RECEIVER_FAST, MODE_SENDER_FAST, MODE_SENDER, MODE_NETWORK]
     
     if mode not in valid_modes:
         raise ValueError(f"Invalid mode specified: {mode}. Must be one of {valid_modes}")
@@ -67,7 +70,8 @@ def set_state(state):
                     STATE_SEND_ACTIVE     , 
                     STATE_NETW_WAIT       ,
                     STATE_NETW_RECV_ACTIVE,
-                    STATE_NETW_SEND_ACTIVE]
+                    STATE_NETW_SEND_ACTIVE,
+                    STATE_KILL_THREAD]
 
     
     if state not in valid_states:
