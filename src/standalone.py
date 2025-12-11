@@ -152,7 +152,7 @@ def run(hostname='localhost', port=8888):
                 if t.is_alive():
                     t.join()
 
-            elif not sw_netw and cfg.APP_MODE != cfg.MODE_NETWORK: #TODO: Cambiar if
+            elif not sw_netw and cfg.APP_MODE != cfg.MODE_NETWORK: #TODO: Set condition: First node
                 cfg.set_mode(cfg.MODE_NETWORK)
                 cfg.set_state(cfg.STATE_KILL_THREAD)
 
@@ -165,7 +165,7 @@ def run(hostname='localhost', port=8888):
                 t = threading.Thread(target=nm.main(True))
                 t.start()
 
-            elif not sw_netw and cfg.APP_MODE != cfg.MODE_NETWORK: #TODO: Cambiar if
+            elif not sw_netw and cfg.APP_MODE != cfg.MODE_NETWORK: #TODO: Set condition: Not First node
                 cfg.set_mode(cfg.MODE_NETWORK)
                 cfg.set_state(cfg.STATE_KILL_THREAD)
 
