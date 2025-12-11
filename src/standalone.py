@@ -50,7 +50,7 @@ def set_leds(pi, mode):
     global yellow_led
     global green_led
 
-    if cfg.APP_MODE == cfg.MODE_NETWORK:
+    if cfg.APP_MODE == cfg.MODE_NETWORK_FIRST or cfg.APP_MODE == cfg.MODE_NETWORK_NODE:
         yellow_led ^= 1
     elif cfg.APP_MODE == cfg.MODE_RECEIVER_FAST or cfg.APP_MODE == cfg.MODE_SENDER_FAST:
         green_led ^= 1
@@ -152,8 +152,8 @@ def run(hostname='localhost', port=8888):
                 if t.is_alive():
                     t.join()
 
-            elif not sw_netw and cfg.APP_MODE != cfg.MODE_NETWORK: #TODO: Set condition: First node
-                cfg.set_mode(cfg.MODE_NETWORK)
+            elif not sw_netw and cfg.APP_MODE != cfg.MODE_NETWORK_FIRST: #TODO: Set condition: First node
+                cfg.set_mode(cfg.MODE_NETWORK_FIRST)
                 cfg.set_state(cfg.STATE_KILL_THREAD)
 
                 # spawn network mode thread
@@ -162,11 +162,11 @@ def run(hostname='localhost', port=8888):
 
                 cfg.set_state(cfg.STATE_NETW_WAIT)
 
-                t = threading.Thread(target=nm.main(True))
+                t = threading.Thread(target=nm.main, args=(True,))
                 t.start()
 
-            elif not sw_netw and cfg.APP_MODE != cfg.MODE_NETWORK: #TODO: Set condition: Not First node
-                cfg.set_mode(cfg.MODE_NETWORK)
+            elif not sw_netw and cfg.APP_MODE != cfg.MODE_NETWORK_NODE: #TODO: Set condition: Not First node
+                cfg.set_mode(cfg.MODE_NETWORK_NODE)
                 cfg.set_state(cfg.STATE_KILL_THREAD)
 
                 # spawn network mode thread
@@ -175,7 +175,7 @@ def run(hostname='localhost', port=8888):
 
                 cfg.set_state(cfg.STATE_NETW_WAIT)
 
-                t = threading.Thread(target=nm.main(False))
+                t = threading.Thread(target=nm.main, args=(False,))
                 t.start()
 
             elif not sw_send and cfg.APP_MODE != cfg.MODE_SENDER:

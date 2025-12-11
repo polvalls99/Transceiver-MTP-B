@@ -4,7 +4,8 @@ MODE_RECEIVER = 1
 MODE_RECEIVER_FAST = 2
 MODE_SENDER = 3
 MODE_SENDER_FAST = 4
-MODE_NETWORK = 5
+MODE_NETWORK_FIRST = 5
+MODE_NETWORK_NODE = 6
 
 # State to indicate to the 7 segment display cuz i'm too lazy to write an enum
 STATE_IDLE             = 0
@@ -46,7 +47,8 @@ def set_mode(mode):
     This is the ONLY function that should write to APP_MODE.
     """
     global APP_MODE
-    valid_modes = [MODE_IDLE, MODE_RECEIVER, MODE_RECEIVER_FAST, MODE_SENDER_FAST, MODE_SENDER, MODE_NETWORK]
+    valid_modes = [MODE_IDLE, MODE_RECEIVER, MODE_RECEIVER_FAST, MODE_SENDER_FAST,
+                   MODE_SENDER, MODE_NETWORK_FIRST, MODE_NETWORK_NODE]
     
     if mode not in valid_modes:
         raise ValueError(f"Invalid mode specified: {mode}. Must be one of {valid_modes}")

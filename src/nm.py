@@ -171,6 +171,8 @@ def get_node_config_standalone() -> tuple[NRF24 | None, str]:
     ce_pin  = get_CE_pin(node_id)
     INFO(f"Selected CE PIN: {ce_pin}")
 
+    nrf = create_radio_object(ce_pin)
+
     return nrf, node_id
 # :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 

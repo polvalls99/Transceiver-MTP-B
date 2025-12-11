@@ -7,13 +7,13 @@ wsl: True
 local_results_dir: "./results"
 
 raspberries:
-  - name: "TX"
-    host: "rpb02@192.168.137.18"
-    remote_dir: "/home/rpb02/mtp"
-    #run_cmd: "python src/berrybeam.py sender"
-    run_cmd: "gcc src/nrf24_linux.c src/rx_example.c -o rx_example"
-    results_dir: "results"
-    show_output: True
+  #- name: "TX"
+  #  host: "rpb02@192.168.137.18"
+  #  remote_dir: "/home/rpb02/mtp"
+  #  #run_cmd: "python src/berrybeam.py sender"
+  #  run_cmd: "gcc src/nrf24_linux.c src/rx_example.c -o rx_example"
+  #  results_dir: "results"
+  #  show_output: True
 
   - name: "RX"
     host: "rpb01@192.168.137.133"
