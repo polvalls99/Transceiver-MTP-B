@@ -159,6 +159,19 @@ def get_node_config() -> tuple[NRF24 | None, str, bool]:
 
     nrf = create_radio_object(ce_pin)
     return nrf, node_id, args.first
+
+
+def get_node_config_standalone() -> tuple[NRF24 | None, str]:
+    """
+    Get a fully configured node based on user input and NODE_ID
+    """
+    node_id = get_id()
+    INFO(f"Detected NODE_ID: {node_id}")
+
+    ce_pin  = get_CE_pin(node_id)
+    INFO(f"Selected CE PIN: {ce_pin}")
+
+    return nrf, node_id
 # :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 
@@ -470,35 +483,51 @@ def ACT_AS_RX(nrf: NRF24, other_channels: list[int]) -> bytes:
 
 
 # :::: MAIN :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-def main(nrf: NRF24, node_id: str, is_first_node: bool) -> None:
+def main(is_first_node: bool, nrf: NRF24 = None, node_id: str = "init", is_standalone: bool = True) -> None:
     """
     Main flow of the application
     """
-    all_channels = [channel for channel in range(0, 115 + 1, 5)]
-    own_channels, other_channels = get_channels_based_on_node_id(all_channels, node_id)
+    global pi
+    try:
 
-    INFO(f"TX channels: {own_channels}")
-    INFO(f"RX channels: {other_channels}")
+        if is_standalone:
+            nrf, node_id = get_node_config_standalone()
+            if is_first_node:
+                INFO("Node initialized as primary TX")
+            else:
+                INFO("Node initialized as primary RX")
 
-    if is_first_node:
-        cfg.set_state(cfg.STATE_SEND_WAIT)
-        file_path = handle_tx_file_based_on_node_id(node_id)
-        if not file_path: return
-        
-        content = file_path.read_bytes()
-        ACT_AS_TX(nrf, node_id, content, own_channels, is_first_node)
 
-    else:
-        content   = ACT_AS_RX(nrf, other_channels)
+        all_channels = [channel for channel in range(0, 115 + 1, 5)]
+        own_channels, other_channels = get_channels_based_on_node_id(all_channels, node_id)
 
-        if cfg.STATE != cfg.STATE_RECV_ACTIVE:
-            raise StateChanged("RECV_ACTIVE")
+        INFO(f"TX channels: {own_channels}")
+        INFO(f"RX channels: {other_channels}")
 
-        file_path = Path(RECEIVED_FILE_NAME)
-        file_path.write_bytes(content)
+        if is_first_node:
+            cfg.set_state(cfg.STATE_SEND_WAIT)
+            file_path = handle_tx_file_based_on_node_id(node_id)
+            if not file_path: return
+            
+            content = file_path.read_bytes()
+            ACT_AS_TX(nrf, node_id, content, own_channels, is_first_node)
 
-        ACT_AS_TX(nrf, node_id, content, own_channels, is_first_node)
-    return
+        else:
+            content   = ACT_AS_RX(nrf, other_channels)
+
+            if cfg.STATE != cfg.STATE_RECV_ACTIVE:
+                raise StateChanged("RECV_ACTIVE")
+
+            file_path = Path(RECEIVED_FILE_NAME)
+            file_path.write_bytes(content)
+
+            ACT_AS_TX(nrf, node_id, content, own_channels, is_first_node)
+        return
+    
+    except StateChanged as e:
+        nrf.power_down()
+        pi.stop()
+        WARN(f"STATE {e} INTERRUMPTED")
 # :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 
@@ -508,7 +537,7 @@ if __name__ == "__main__":
     try:
         nrf, node_id, first = get_node_config()
         if nrf is not None:
-            main(nrf = nrf, node_id = node_id, is_first_node = first)
+            main(is_first_node = first, nrf = nrf, node_id = node_id, is_standalone = False)
 
     except KeyboardInterrupt:
         ERROR("Process interrupted by the user")

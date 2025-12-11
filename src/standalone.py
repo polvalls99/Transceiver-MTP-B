@@ -9,6 +9,7 @@
 
 import threading
 import Pretest
+import nm
 import berrybeam_config as cfg
 import pigpio
 import time
@@ -151,7 +152,7 @@ def run(hostname='localhost', port=8888):
                 if t.is_alive():
                     t.join()
 
-            elif not sw_netw and cfg.APP_MODE != cfg.MODE_NETWORK:
+            elif not sw_netw and cfg.APP_MODE != cfg.MODE_NETWORK: #TODO: Cambiar if
                 cfg.set_mode(cfg.MODE_NETWORK)
                 cfg.set_state(cfg.STATE_KILL_THREAD)
 
@@ -161,10 +162,21 @@ def run(hostname='localhost', port=8888):
 
                 cfg.set_state(cfg.STATE_NETW_WAIT)
 
-                print ("\033[33m[WARN]\033[0m Network mode not integrated, nothing to do...")
-                # FIXME: commenting network mode as it is not implemented yet
-                #t = threading.Thread(target=network.run())
-                #t.start()
+                t = threading.Thread(target=nm.main(True))
+                t.start()
+
+            elif not sw_netw and cfg.APP_MODE != cfg.MODE_NETWORK: #TODO: Cambiar if
+                cfg.set_mode(cfg.MODE_NETWORK)
+                cfg.set_state(cfg.STATE_KILL_THREAD)
+
+                # spawn network mode thread
+                if t.is_alive():
+                    t.join()
+
+                cfg.set_state(cfg.STATE_NETW_WAIT)
+
+                t = threading.Thread(target=nm.main(False))
+                t.start()
 
             elif not sw_send and cfg.APP_MODE != cfg.MODE_SENDER:
                 cfg.set_mode(cfg.MODE_SENDER)
