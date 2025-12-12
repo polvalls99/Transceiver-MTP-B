@@ -186,10 +186,19 @@ def get_usb_mount_path() -> Path | None:
     """
     Try to find a valid USB device connected to the USB mount path
     """
+    #for path, _, _ in USB_MOUNT_PATH.walk():
+    #    if path.is_mount():
+    #        return path
     
-    for path, _, _ in USB_MOUNT_PATH.walk():
-        if path.is_mount():
-            return path
+    
+    if Path("/dev/sda1").exists():
+        os.system(f"udisksctl mount -b /dev/sda1")
+
+        for path, _, _ in USB_MOUNT_PATH.walk():
+            if path.is_mount():
+                return path
+    else:
+        INFO("NO")
 
     return None
 
@@ -449,14 +458,20 @@ def ACT_AS_RX(nrf: NRF24, other_channels: list[int]) -> bytes:
 
 
 
-def save_file_usb(content: bytes) -> None:
+def save_file_usb(content: bytes, is_long_range=0, file_path=None) -> None:
     file_saved = False
     while (file_saved == False):
         usb_mount_path = get_usb_mount_path()
         if usb_mount_path:
             INFO("SE HA ENCONTRADO UN USB PA GUARDAR LAS COSAS ERMANIKO") 
-            (usb_mount_path / "file_received.txt").write_bytes(content)
+            if is_long_range==0:
+                os.system(f'cp {file_path} {usb_mount_path}/MTP-F25-SRI-B-RX.txt')
+                #(usb_mount_path / "MTP-F25-SRI-B-RX.txt").write_bytes(content)
+            else:
+                os.system(f'cp {file_path} {usb_mount_path}/MTP-F25-MRM-B-RX.txt')
+                #(usb_mount_path / "MTP-F25-MRM-B-RX.txt").write_bytes(content)
             file_saved = True
+            os.system(f'udisksctl unmount -b /dev/sda1')
             SUCC("ARCHIVO GUARDADO EN EL USB")
 
         if cfg.STATE != cfg.STATE_RECV_WAIT_USB:
@@ -537,22 +552,33 @@ def main(is_tx=0, is_standalone=0, is_long_range=0):
             if cfg.STATE != cfg.STATE_RECV_ACTIVE:
                 raise StateChanged("RECV_ACTIVE")
             if usb_mount_path:
-                INFO("SE HA ENCONTRADO UN USB PA GUARDAR LAS COSAS ERMANIKO") 
-                (usb_mount_path / "file_received.txt").write_bytes(content)
+                INFO("SE HA ENCONTRADO UN USB PA GUARDAR LAS COSAS ERMANIKO")
+                Path("file_received.txt").write_bytes(content)
+                file_path_rx = Path("file_received.txt")
+                if is_long_range==0:
+                    os.system(f'cp {file_path_rx} {usb_mount_path}/MTP-F25-SRI-B-RX.txt')
+                    #(usb_mount_path / "MTP-F25-SRI-B-RX.txt").write_bytes(content)
+                else:
+                    os.system(f'cp {file_path_rx} {usb_mount_path}/MTP-F25-MRM-B-RX.txt')
+                    #(usb_mount_path / "MTP-F25-MRM-B-RX.txt").write_bytes(content)
+                os.system(f'udisksctl unmount -b /dev/sda1')
+                #(usb_mount_path / "file_received.txt").write_bytes(content)
                 SUCC("ARCHIVO GUARDADO EN EL USB")
                 cfg.set_state(cfg.STATE_RECV_USB_DONE)
             else:
                 INFO("NO SA ENCONTRAO EL USB PA GUARDAR, LO GUARDO POR AHI")
                 Path("file_received.txt").write_bytes(content)
+                file_path_rx = Path("file_received.txt")
                 INFO("BUSCANDO UN USB PARA GUARDAR EL ARCHIVO...")
                 cfg.set_state(cfg.STATE_RECV_WAIT_USB)
-                save_file_usb(content)
+                save_file_usb(content, is_long_range, file_path_rx)
                 cfg.set_state(cfg.STATE_RECV_USB_DONE)
 
         nrf.power_down()
         
         return
     except StateChanged as e:
+        os.system(f'udisksctl unmount -b /dev/sda1')
         nrf.power_down()
         pi.stop()
         WARN(f"STATE {e} INTERRUMPTED")

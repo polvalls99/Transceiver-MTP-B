@@ -40,7 +40,9 @@ PERSEVERANCE                = 50
 CHANNEL_PERMANENCE_TIMEOUT  = 3
 NUMBER_OF_CYCLES            = 10
 
-RECEIVED_FILE_NAME          = "received_file.txt"
+pi                          = 0
+
+RECEIVED_FILE_NAME          = "MTP-F25-NM-B-RX.txt"
 # :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
 
 
@@ -102,6 +104,8 @@ def create_radio_object(ce_pin: int) -> NRF24 | None:
     """
     hostname = "localhost"
     port     = 8888
+    
+    global pi
 
     pi = pigpio.pi(hostname, port)
     if not pi.connected:
@@ -189,6 +193,14 @@ def get_usb_mount_path() -> Path | None:
     for path, _, _ in USB_MOUNT_PATH.walk():
         if path.is_mount():
             return path
+    
+    
+    if Path("/dev/sda1").exists():
+        os.system(f"udisksctl mount -b /dev/sda1")
+
+        for path, _, _ in USB_MOUNT_PATH.walk():
+            if path.is_mount():
+                return path
 
     return None
 
@@ -351,7 +363,7 @@ def choose_occupied_channel(nrf: NRF24, other_channels: list[int], channel_idx: 
 
 
 # :::: FLOW FUNCTIONS :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
-def ACT_AS_TX(nrf: NRF24, node_id: str, content: bytes, own_channels: list[int], is_first_node: bool) -> NoReturn:
+def ACT_AS_TX(nrf: NRF24, node_id: str, content: bytes, own_channels: list[int], is_first_node: bool, file_path =  None) -> NoReturn:
     """
     Put the node in TX mode and start transmitting indefinetly until the process is terminated
     """
@@ -393,7 +405,9 @@ def ACT_AS_TX(nrf: NRF24, node_id: str, content: bytes, own_channels: list[int],
             usb_mount_path = get_usb_mount_path()
             if usb_mount_path:
                 INFO("SE HA ENCONTRADO UN USB PA GUARDAR LAS COSAS ERMANIKO") 
-                (usb_mount_path / RECEIVED_FILE_NAME).write_bytes(content)
+                os.system(f'cp {file_path} {usb_mount_path}/{RECEIVED_FILE_NAME}')
+                os.system(f'udisksctl unmount -b /dev/sda1')
+                #(usb_mount_path / RECEIVED_FILE_NAME).write_bytes(content)
                 is_first_node = True # No es que sea el primer nodo, pero como ya ha guardado el archivo lo pongo en TRUE porque ya ha cumplido su funcion
                 SUCC("ARCHIVO GUARDADO EN EL USB")
                 cfg.set_state(cfg.STATE_RECV_USB_DONE)
@@ -523,10 +537,11 @@ def main(is_first_node: bool, nrf: NRF24 = None, node_id: str = "init", is_stand
             file_path = Path(RECEIVED_FILE_NAME)
             file_path.write_bytes(content)
 
-            ACT_AS_TX(nrf, node_id, content, own_channels, is_first_node)
+            ACT_AS_TX(nrf, node_id, content, own_channels, is_first_node, file_path)
         return
     
     except StateChanged as e:
+        os.system(f'udisksctl unmount -b /dev/sda1')
         nrf.power_down()
         pi.stop()
         WARN(f"STATE {e} INTERRUMPTED")
